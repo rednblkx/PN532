@@ -134,8 +134,8 @@ public:
     // Generic PN532 functions
     bool SAMConfig(void);
     uint32_t getFirmwareVersion(void);
-    uint32_t readRegister(uint16_t reg);
-    uint32_t writeRegister(uint16_t reg, uint8_t val);
+    uint32_t readRegister(uint16_t *reg, unsigned int numAddresses);
+    uint32_t writeRegister(uint16_t *reg, uint8_t *val, unsigned int numAddresses);
     bool writeGPIO(uint8_t pinstate);
     uint8_t readGPIO(void);
     bool setPassiveActivationRetries(uint8_t maxRetries);
@@ -161,8 +161,8 @@ public:
     bool inListPassiveTarget();
     bool startPassiveTargetIDDetection(uint8_t cardbaudrate);
     bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t timeout = 1000, bool inlist = false);
-    bool inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength);
-    bool inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength);
+    bool inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, bool type4);
+    bool inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout, bool type4);
 
     // Mifare Classic functions
     bool mifareclassic_IsFirstBlock (uint32_t uiBlock);

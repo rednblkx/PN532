@@ -140,23 +140,24 @@ uint32_t PN532::getFirmwareVersion(void)
     return response;
 }
 
-
-/**************************************************************************/
-/*!
-    @brief  Read a PN532 register.
-
-    @param  reg  the 16-bit register address.
-
-    @returns  The register value.
-*/
-/**************************************************************************/
-uint32_t PN532::readRegister(uint16_t reg)
+/**
+ * @brief The function reads the values from the specified registers in the PN532 chip and returns the
+ * response.
+ * 
+ * @param reg An array of 16-bit register addresses to read from.
+ * @param numAddresses The parameter `numAddresses` is the number of register addresses that you want
+ * to read. It specifies the size of the `reg` array, which contains the register addresses.
+ * 
+ * @returns a uint32_t value, which is the value of the variable "response".
+ */
+uint32_t PN532::readRegister(uint16_t reg[], unsigned numAddresses)
 {
     uint32_t response;
-
     pn532_packetbuffer[0] = PN532_COMMAND_READREGISTER;
-    pn532_packetbuffer[1] = (reg >> 8) & 0xFF;
-    pn532_packetbuffer[2] = reg & 0xFF;
+    for (size_t i = 0; i < numAddresses; ++i) {
+        pn532_packetbuffer[2 * i + 1] = (reg[i] >> 8) & 0xFF;
+        pn532_packetbuffer[2 * i + 2] = reg[i] & 0xFF;
+    }
 
     if (HAL(writeCommand)(pn532_packetbuffer, 3)) {
         return 0;
@@ -169,28 +170,32 @@ uint32_t PN532::readRegister(uint16_t reg)
     }
 
     response = pn532_packetbuffer[0];
-
     return response;
 }
 
-/**************************************************************************/
-/*!
-    @brief  Write to a PN532 register.
-
-    @param  reg  the 16-bit register address.
-    @param  val  the 8-bit value to write.
-
-    @returns  0 for failure, 1 for success.
-*/
-/**************************************************************************/
-uint32_t PN532::writeRegister(uint16_t reg, uint8_t val)
+/**
+ * @brief function `writeRegister` writes values to specified registers in a PN532 device and returns a
+ * status code indicating success or failure.
+ *
+ * @param reg An array of 16-bit register addresses.
+ * @param val The "val" parameter is an array of uint8_t values that represent the values to be written
+ * to the specified registers. Each element in the "val" array corresponds to a register specified in
+ * the "reg" array. The "numAddresses" parameter indicates the number of registers to be written.
+ * @param numAddresses The parameter "numAddresses" represents the number of addresses or registers
+ * that you want to write to. It specifies the length of the "reg" and "val" arrays.
+ *
+ * @returns a uint32_t value.
+ */
+uint32_t PN532::writeRegister(uint16_t *reg, uint8_t *val, unsigned int numAddresses)
 {
     uint32_t response;
 
     pn532_packetbuffer[0] = PN532_COMMAND_WRITEREGISTER;
-    pn532_packetbuffer[1] = (reg >> 8) & 0xFF;
-    pn532_packetbuffer[2] = reg & 0xFF;
-    pn532_packetbuffer[3] = val;
+    for (size_t i = 0; i < numAddresses; ++i) {
+        pn532_packetbuffer[3 * i + 1] = (reg[i] >> 8) & 0xFF;
+        pn532_packetbuffer[3 * i + 2] = reg[i] & 0xFF;
+        pn532_packetbuffer[3 * i + 3] = val[i];
+    }
 
 
     if (HAL(writeCommand)(pn532_packetbuffer, 4)) {
@@ -834,19 +839,36 @@ uint8_t PN532::mifareultralight_WritePage (uint8_t page, uint8_t *buffer)
     @param  responseLength  Pointer to the response data length
 */
 /**************************************************************************/
-bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
+bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, bool type4)
 {
     uint8_t i;
+
+    uint8_t apdu[sendLength + 1];
+
+    if(type4 && sendLength > 4){
+        uint8_t buf[sizeof(apdu)] = {send[0], send[1], send[2], send[3]};
+        uint8_t data[sendLength - 5];
+        memcpy(data, send + 4, sendLength - 5);
+        uint8_t lc = sizeof(data);
+        memcpy(buf + 4, &lc, 1);
+        memcpy(buf + 5, data, lc);
+        memcpy(buf + 5 + lc, &send[sendLength - 1], 1);
+        memcpy(apdu, buf, sizeof(apdu));
+        Serial.println("\n***APDU SENT COMMAND: ");
+        PrintHex(apdu, sizeof(apdu));
+    }
 
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
     pn532_packetbuffer[1] = inListedTag;
 
-    if (HAL(writeCommand)(pn532_packetbuffer, 2, send, sendLength)) {
+    if (HAL(writeCommand)(pn532_packetbuffer, 2, type4?apdu:send, type4?sizeof(apdu):sendLength)) {
         return false;
     }
 
     int16_t status = HAL(readResponse)(response, *responseLength, 1000);
-    if (status < 0) {
+    Serial.printf("\nResponse Status: %d\n", status);
+    if (status < 0)
+    {
         return false;
     }
 
@@ -881,15 +903,28 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     @param  responseLength  Pointer to the response data length
 */
 /**************************************************************************/
-bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
+bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout, bool type4)
 {
   pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
+    uint8_t apdu[sendLength + 1];
 
-  if (HAL(writeCommand)(pn532_packetbuffer, 1, send, sendLength)) {
+    if(type4 && sendLength > 4){
+        uint8_t buf[sizeof(apdu)] = {send[0], send[1], send[2], send[3]};
+        uint8_t data[sendLength - 5];
+        memcpy(data, send + 4, sendLength - 5);
+        uint8_t lc = sizeof(data);
+        memcpy(buf + 4, &lc, 1);
+        memcpy(buf + 5, data, lc);
+        memcpy(buf + 5 + lc, &send[sendLength - 1], 1);
+        memcpy(apdu, buf, sizeof(apdu));
+        PrintHex(apdu, sizeof(apdu));
+    }
+
+  if (HAL(writeCommand)(pn532_packetbuffer, 1, type4?apdu:send, type4?sizeof(apdu):sendLength)) {
     return false;
   }
 
-  int16_t status = HAL(readResponse)(response, *responseLength, 1000);
+  int16_t status = HAL(readResponse)(response, *responseLength, timeout);
   if (status < 0) {
     return false;
   }
@@ -935,7 +970,7 @@ bool PN532::inListPassiveTarget()
         return false;
     }
 
-    int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), 30000);
+    int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), 1000);
     if (status < 0) {
         return false;
     }
