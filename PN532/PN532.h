@@ -161,8 +161,8 @@ public:
     bool inListPassiveTarget();
     bool startPassiveTargetIDDetection(uint8_t cardbaudrate);
     bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t timeout = 1000, bool inlist = false);
-    bool inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, bool type4);
-    bool inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout, bool type4);
+    bool inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength);
+    bool inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout);
 
     // Mifare Classic functions
     bool mifareclassic_IsFirstBlock (uint32_t uiBlock);

@@ -839,29 +839,16 @@ uint8_t PN532::mifareultralight_WritePage (uint8_t page, uint8_t *buffer)
     @param  responseLength  Pointer to the response data length
 */
 /**************************************************************************/
-bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, bool type4)
+bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
 {
     uint8_t i;
 
-    uint8_t apdu[sendLength + 1];
-
-    if(type4 && sendLength > 4){
-        uint8_t buf[sizeof(apdu)] = {send[0], send[1], send[2], send[3]};
-        uint8_t data[sendLength - 5];
-        memcpy(data, send + 4, sendLength - 5);
-        uint8_t lc = sizeof(data);
-        memcpy(buf + 4, &lc, 1);
-        memcpy(buf + 5, data, lc);
-        memcpy(buf + 5 + lc, &send[sendLength - 1], 1);
-        memcpy(apdu, buf, sizeof(apdu));
-        Serial.println("\n***APDU SENT COMMAND: ");
-        PrintHex(apdu, sizeof(apdu));
-    }
+    PrintHex(send, sendLength);
 
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
     pn532_packetbuffer[1] = inListedTag;
 
-    if (HAL(writeCommand)(pn532_packetbuffer, 2, type4?apdu:send, type4?sizeof(apdu):sendLength)) {
+    if (HAL(writeCommand)(pn532_packetbuffer, 2, send, sendLength)) {
         return false;
     }
 
@@ -903,24 +890,11 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     @param  responseLength  Pointer to the response data length
 */
 /**************************************************************************/
-bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout, bool type4)
+bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout)
 {
   pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
-    uint8_t apdu[sendLength + 1];
 
-    if(type4 && sendLength > 4){
-        uint8_t buf[sizeof(apdu)] = {send[0], send[1], send[2], send[3]};
-        uint8_t data[sendLength - 5];
-        memcpy(data, send + 4, sendLength - 5);
-        uint8_t lc = sizeof(data);
-        memcpy(buf + 4, &lc, 1);
-        memcpy(buf + 5, data, lc);
-        memcpy(buf + 5 + lc, &send[sendLength - 1], 1);
-        memcpy(apdu, buf, sizeof(apdu));
-        PrintHex(apdu, sizeof(apdu));
-    }
-
-  if (HAL(writeCommand)(pn532_packetbuffer, 1, type4?apdu:send, type4?sizeof(apdu):sendLength)) {
+  if (HAL(writeCommand)(pn532_packetbuffer, 1, send, sendLength)) {
     return false;
   }
 
