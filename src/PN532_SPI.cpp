@@ -91,68 +91,63 @@ int16_t PN532_SPI::readResponseT4(uint8_t buf[], uint8_t len, uint16_t timeout)
         DMSG_HEX(PREAMBLE);
         DMSG_HEX(STARTCODE1);
         DMSG_HEX(STARTCODE2);
-        printf("\n");
+        DMSG_STR("");
 
         if (0x00 != PREAMBLE ||   // PREAMBLE
             0x00 != STARTCODE1 || // STARTCODE1
             0xFF != STARTCODE2    // STARTCODE2
         )
         {
-            DMSG("PN532::INVALID HEADER");
+            DMSG_STR("PN532::INVALID HEADER");
             result = PN532_INVALID_FRAME;
-            // break;
+            break;
         }
 
         uint8_t length = read();
         uint8_t lcs = read();
         uint8_t byte;
         uint8_t dataLength;
-        printf("\n");
         DMSG_HEX(length);
+        DMSG_STR("");
         DMSG_HEX(lcs);
-        printf("\n");
         if(length == 0xFF && lcs == 0xFF){
-            DMSG("SOMETHING STRANGE");
+            DMSG_STR("SOMETHING STRANGE");
             read();
             byte = read();
             dataLength = read();
             DMSG_HEX(byte);
             DMSG_HEX(dataLength);
-            printf("che4cksum");
+            DMSG("che4cksum");
             DMSG_HEX((uint8_t)(dataLength + byte));
             if (0xFF != (uint8_t)(dataLength + byte))
             {
                 DMSG("PN532::FAILED CHECKSUM LENGTH");
                 result = PN532_INVALID_FRAME;
-                // break;
+                break;
             }
         } else if (0 != (uint8_t)(length + lcs))
         { // checksum of length
-            DMSG("PN532::FAILED CHECKSUM LENGTH");
-            // result = PN532_INVALID_FRAME;
-            // break;
+            DMSG_STR("PN532::FAILED CHECKSUM LENGTH");
+            result = PN532_INVALID_FRAME;
+            break;
         }
 
         uint8_t cmd = command + 1; // response command
         uint8_t TO_HOST = read();
         uint8_t CMD_TO_HOST = read();
-        printf("\n");
         DMSG_HEX(TO_HOST);
         DMSG_HEX(CMD_TO_HOST);
-        printf("\n");
+        // printf("\n");
         if (PN532_PN532TOHOST != TO_HOST || (cmd) != CMD_TO_HOST)
         {
-            // result = PN532_INVALID_FRAME;
-            DMSG("PN532::COMMAND NOT VALID");
-            // DMSG_HEX(TO_HOST);
-            printf("\n");
-            // DMSG_HEX(CMD_TO_HOST);
-            // break;
+            result = PN532_INVALID_FRAME;
+            DMSG_STR("PN532::COMMAND NOT VALID");
+            break;
         }
 
         DMSG("read:  ");
         DMSG_HEX(cmd);
-        printf("\n");
+        // printf("\n");
 
         length -= (lcs == 0xFF ? 1 : 2);
         if (length > len)
@@ -223,7 +218,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         DMSG_HEX(PREAMBLE);
         DMSG_HEX(STARTCODE1);
         DMSG_HEX(STARTCODE2);
-        printf("\n");
+        DMSG_STR("");
 
         if (0x00 != PREAMBLE ||   // PREAMBLE
             0x00 != STARTCODE1 || // STARTCODE1
@@ -237,10 +232,10 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
 
         uint8_t length = read();
         uint8_t length1 = read();
-        printf("\n");
+        DMSG_STR("");
         DMSG_HEX(length);
         DMSG_HEX(length1);
-        printf("\n");
+        DMSG_STR("");
         if (0 != (uint8_t)(length + length1))
         { // checksum of length
             DMSG("PN532::FAILED CHECKSUM LENGTH");
@@ -251,23 +246,23 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         uint8_t cmd = command + 1; // response command
         uint8_t TO_HOST = read();
         uint8_t CMD_TO_HOST = read();
-        printf("\n");
+        DMSG_STR("");
         DMSG_HEX(TO_HOST);
         DMSG_HEX(CMD_TO_HOST);
-        printf("\n");
+        DMSG_STR("");
         if (PN532_PN532TOHOST != TO_HOST || (cmd) != CMD_TO_HOST)
         {
             result = PN532_INVALID_FRAME;
             DMSG("PN532::COMMAND NOT VALID");
             // DMSG_HEX(TO_HOST);
-            printf("\n");
+            DMSG_STR("");
             // DMSG_HEX(CMD_TO_HOST);
             // break;
         }
 
         DMSG("read:  ");
         DMSG_HEX(cmd);
-        printf("\n");
+        DMSG_STR("");
 
         length -= 2;
         if (length > len)
