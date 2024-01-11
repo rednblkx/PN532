@@ -85,6 +85,106 @@ int8_t PN532_HSU::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
     return readAckFrame();
 }
 
+int16_t PN532_HSU::readResponseT4(uint8_t buf[], uint8_t len, uint16_t timeout)
+{
+    uint8_t tmp[3];
+
+    DMSG("\nReadT4:  ");
+
+    /** Frame Preamble and Start Code */
+    if (receive(tmp, 3, timeout) <= 0)
+    {
+        return PN532_TIMEOUT;
+    }
+    if (0 != tmp[0] || 0 != tmp[1] || 0xFF != tmp[2])
+    {
+        DMSG("Preamble error");
+        return PN532_INVALID_FRAME;
+    }
+
+    /** receive length and check */
+    uint8_t length[2];
+    uint8_t dlength[3];
+
+    if (receive(length, 2, timeout) <= 0)
+    {
+        return PN532_TIMEOUT;
+    }
+    if (length[0] == 0xFF && length[1] == 0xFF)
+    {
+        DMSG_STR("SOMETHING STRANGE");
+
+        if (receive(dlength, 3, timeout) <= 0)
+        {
+            return PN532_TIMEOUT;
+        }
+
+        if (0xFF != (uint8_t)(dlength[1] + dlength[2]))
+        {
+                DMSG("PN532::FAILED CHECKSUM LENGTH");
+                return PN532_INVALID_FRAME;
+        }
+    } else if (0 != (uint8_t)(length[0] + length[1]))
+    {
+        DMSG("Length error");
+        return PN532_INVALID_FRAME;
+    }
+
+    /** receive command byte */
+    uint8_t cmd = command + 1; // response command
+    if (receive(tmp, 2, timeout) <= 0)
+    {
+        return PN532_TIMEOUT;
+    }
+    if (PN532_PN532TOHOST != tmp[0] || cmd != tmp[1])
+    {
+        DMSG("Command error");
+        return PN532_INVALID_FRAME;
+    }
+
+    length[0] -= (length[1] == 0xFF ? 1 : 2);
+    if (length[0] > len)
+    {
+        for (uint8_t i = 0; i < length[0]; i++)
+        {
+            if (receive(tmp, 1, timeout) <= 0)
+            {
+                return PN532_TIMEOUT;
+            }
+            DMSG_HEX(tmp[0]);
+        }
+        DMSG("\nNot enough space\n");
+        if (receive(tmp, 2, timeout) <= 0)
+        {
+                return PN532_TIMEOUT;
+        }
+        return PN532_NO_SPACE;
+    }
+
+    if (receive(buf, length[0], timeout) != length[0])
+    {
+        return PN532_TIMEOUT;
+    }
+    uint8_t sum = PN532_PN532TOHOST + cmd;
+    for (uint8_t i = 0; i < length[0]; i++)
+    {
+        sum += buf[i];
+    }
+
+    /** checksum and postamble */
+    if (receive(tmp, 2, timeout) <= 0)
+    {
+        return PN532_TIMEOUT;
+    }
+    if (0 != (uint8_t)(sum + tmp[0]) || 0 != tmp[1])
+    {
+        DMSG("Checksum error");
+        return PN532_INVALID_FRAME;
+    }
+
+    return length[0];
+}
+
 int16_t PN532_HSU::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
 {
     uint8_t tmp[3];
