@@ -82,6 +82,9 @@ int8_t PN532_HSU::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
     _serial->write(checksum);
     _serial->write(uint8_t(PN532_POSTAMBLE));
 
+    // Workaround for timing issues with HomeKey
+    delay(3);
+
     return readAckFrame();
 }
 
