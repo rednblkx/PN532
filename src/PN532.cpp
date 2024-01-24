@@ -500,6 +500,77 @@ bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uid
     return 1;
 }
 
+/**************************************************************************/
+/*!
+    Waits for an ISO14443A target to enter the field
+
+    @param  cardBaudRate  Baud rate of the card
+    @param  uid           Pointer to the array that will be populated
+                          with the card's UID (up to 7 bytes)
+    @param  uidLength     Pointer to the variable that will hold the
+                          length of the card's UID.
+    @param  timeout       The number of tries before timing out
+    @param  inlist        If set to true, the card will be inlisted
+
+    @returns 1 if everything executed properly, 0 for an error
+*/
+/**************************************************************************/
+bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist)
+{
+    pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
+    pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
+    pn532_packetbuffer[2] = cardbaudrate;
+
+    if (HAL(writeCommand)(pn532_packetbuffer, 3)) {
+        return 0x0;  // command failed
+    }
+
+    // read data packet
+    if (HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), timeout) < 0) {
+        return 0x0;
+    }
+
+    // check some basic stuff
+    /* ISO14443A card response should be in the following format:
+
+      byte            Description
+      -------------   ------------------------------------------
+      b0              Tags Found
+      b1              Tag Number (only one used in this example)
+      b2..3           SENS_RES
+      b4              SEL_RES
+      b5              NFCID Length
+      b6..NFCIDLen    NFCID
+    */
+
+    if (pn532_packetbuffer[0] != 1)
+        return 0;
+
+    uint16_t sens_res = pn532_packetbuffer[2];
+    sens_res <<= 8;
+    sens_res |= pn532_packetbuffer[3];
+
+    DMSG("ATQA: 0x");  DMSG_HEX(sens_res);
+    DMSG("SAK: 0x");  DMSG_HEX(pn532_packetbuffer[4]);
+    DMSG("\n");
+
+    memcpy(atqa, &sens_res, sizeof(sens_res));
+    *sak = pn532_packetbuffer[4];
+
+    /* Card appears to be Mifare Classic */
+    *uidLength = pn532_packetbuffer[5];
+
+    for (uint8_t i = 0; i < pn532_packetbuffer[5]; i++) {
+        uid[i] = pn532_packetbuffer[6 + i];
+    }
+
+    if (inlist) {
+        inListedTag = pn532_packetbuffer[1];
+    }
+
+    return 1;
+}
+
 
 /***** Mifare Classic Functions ******/
 
@@ -867,7 +938,7 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
 {
     uint8_t i;
 
-    PrintHex(send, sendLength);
+    // PrintHex(send, sendLength);
 
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
     pn532_packetbuffer[1] = inListedTag;
@@ -877,7 +948,7 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     }
 
     int16_t status = HAL(readResponse)(response, *responseLength, 1000);
-    Serial.printf("\nResponse Status: %d\n", status);
+    // Serial.printf("\nResponse Status: %d\n", status);
     if (status < 0)
     {
         return false;
@@ -916,7 +987,7 @@ bool PN532::inDataExchangeT4(uint8_t *send, uint8_t sendLength, uint8_t *respons
 {
     uint8_t i;
 
-    PrintHex(send, sendLength);
+    // PrintHex(send, sendLength);
 
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
     pn532_packetbuffer[1] = inListedTag;
@@ -927,7 +998,7 @@ bool PN532::inDataExchangeT4(uint8_t *send, uint8_t sendLength, uint8_t *respons
 
     int16_t status = HAL(readResponseT4)(response, *responseLength, 1000);
 
-    Serial.printf("\nResponse Status: %d\n", status);
+    // Serial.printf("\nResponse Status: %d\n", status);
     if (status < 0)
     {
         return false;
@@ -1020,7 +1091,7 @@ bool PN532::inCommunicateThruT4(uint8_t *send, uint8_t sendLength, uint8_t *resp
   }
 
   int16_t status = HAL(readResponseT4)(response, *responseLength, timeout);
-  Serial.printf("\nResponse Status: %d\n", status);
+//   Serial.printf("\nResponse Status: %d\n", status);
   if (status < 0) {
     return false;
   }
