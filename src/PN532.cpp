@@ -140,7 +140,6 @@ uint32_t PN532::getFirmwareVersion(void)
     return response;
 }
 
-
 /**************************************************************************/
 /*!
     @brief  Read a PN532 register.
@@ -153,7 +152,6 @@ uint32_t PN532::getFirmwareVersion(void)
 uint32_t PN532::readRegister(uint16_t reg)
 {
     uint32_t response;
-
     pn532_packetbuffer[0] = PN532_COMMAND_READREGISTER;
     pn532_packetbuffer[1] = (reg >> 8) & 0xFF;
     pn532_packetbuffer[2] = reg & 0xFF;
@@ -169,7 +167,6 @@ uint32_t PN532::readRegister(uint16_t reg)
     }
 
     response = pn532_packetbuffer[0];
-
     return response;
 }
 
@@ -383,6 +380,38 @@ bool PN532::setRFField(uint8_t autoRFCA, uint8_t rFOnOff)
     return (0 < HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer)));
 }
 
+/**************************************************************************/
+/*!
+    Sets the RFon/off uint8_t of the RFConfiguration register
+
+    @param  autoRFCA    0x00 No check of the external field before 
+                        activation 
+                        
+                        0x02 Check the external field before 
+                        activation
+
+    @param  rFOnOff     0x00 Switch the RF field off, 0x01 switch the RF 
+                        field on
+
+    @returns    1 if everything executed properly, 0 for an error
+*/
+/**************************************************************************/
+
+bool PN532::setRFConfiguration(uint8_t cfgItem, uint8_t *confData)
+{
+    pn532_packetbuffer[0] = PN532_COMMAND_RFCONFIGURATION;
+    pn532_packetbuffer[1] = cfgItem;
+    pn532_packetbuffer[2] = confData[0];
+    pn532_packetbuffer[3] = confData[1];
+    pn532_packetbuffer[4] = confData[2];
+
+    if (HAL(writeCommand)(pn532_packetbuffer, 5)) {
+        return 0x0;  // command failed
+    }
+
+    return (0 < HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer)));
+}
+
 /***** ISO14443A Commands ******/
 
 /**************************************************************************/
@@ -401,6 +430,7 @@ bool PN532::startPassiveTargetIDDetection(uint8_t cardbaudrate) {
     if (HAL(writeCommand)(pn532_packetbuffer, 3)) {
         return 0x0;  // command failed
     }
+    return 1;
 }
 
 /**************************************************************************/
@@ -456,6 +486,77 @@ bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uid
     DMSG("ATQA: 0x");  DMSG_HEX(sens_res);
     DMSG("SAK: 0x");  DMSG_HEX(pn532_packetbuffer[4]);
     DMSG("\n");
+
+    /* Card appears to be Mifare Classic */
+    *uidLength = pn532_packetbuffer[5];
+
+    for (uint8_t i = 0; i < pn532_packetbuffer[5]; i++) {
+        uid[i] = pn532_packetbuffer[6 + i];
+    }
+
+    if (inlist) {
+        inListedTag = pn532_packetbuffer[1];
+    }
+
+    return 1;
+}
+
+/**************************************************************************/
+/*!
+    Waits for an ISO14443A target to enter the field
+
+    @param  cardBaudRate  Baud rate of the card
+    @param  uid           Pointer to the array that will be populated
+                          with the card's UID (up to 7 bytes)
+    @param  uidLength     Pointer to the variable that will hold the
+                          length of the card's UID.
+    @param  timeout       The number of tries before timing out
+    @param  inlist        If set to true, the card will be inlisted
+
+    @returns 1 if everything executed properly, 0 for an error
+*/
+/**************************************************************************/
+bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist)
+{
+    pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
+    pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
+    pn532_packetbuffer[2] = cardbaudrate;
+
+    if (HAL(writeCommand)(pn532_packetbuffer, 3)) {
+        return 0x0;  // command failed
+    }
+
+    // read data packet
+    if (HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), timeout) < 0) {
+        return 0x0;
+    }
+
+    // check some basic stuff
+    /* ISO14443A card response should be in the following format:
+
+      byte            Description
+      -------------   ------------------------------------------
+      b0              Tags Found
+      b1              Tag Number (only one used in this example)
+      b2..3           SENS_RES
+      b4              SEL_RES
+      b5              NFCID Length
+      b6..NFCIDLen    NFCID
+    */
+
+    if (pn532_packetbuffer[0] != 1)
+        return 0;
+
+    uint16_t sens_res = pn532_packetbuffer[2];
+    sens_res <<= 8;
+    sens_res |= pn532_packetbuffer[3];
+
+    DMSG("ATQA: 0x");  DMSG_HEX(sens_res);
+    DMSG("SAK: 0x");  DMSG_HEX(pn532_packetbuffer[4]);
+    DMSG("\n");
+
+    memcpy(atqa, &sens_res, sizeof(sens_res));
+    *sak = pn532_packetbuffer[4];
 
     /* Card appears to be Mifare Classic */
     *uidLength = pn532_packetbuffer[5];
@@ -708,7 +809,7 @@ uint8_t PN532::mifareclassic_WriteNDEFURI (uint8_t sectorNumber, uint8_t uriIden
     // in NDEF records
 
     // Setup the sector buffer (w/pre-formatted TLV wrapper and NDEF message)
-    uint8_t sectorbuffer1[16] = {0x00, 0x00, 0x03, len + 5, 0xD1, 0x01, len + 1, 0x55, uriIdentifier, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t sectorbuffer1[16] = {0x00, 0x00, 0x03, uint8_t(len + 5), 0xD1, 0x01, uint8_t(len + 1), 0x55, uriIdentifier, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t sectorbuffer2[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t sectorbuffer3[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t sectorbuffer4[16] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -838,6 +939,8 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
 {
     uint8_t i;
 
+    // PrintHex(send, sendLength);
+
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
     pn532_packetbuffer[1] = inListedTag;
 
@@ -846,7 +949,59 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     }
 
     int16_t status = HAL(readResponse)(response, *responseLength, 1000);
-    if (status < 0) {
+    // Serial.printf("\nResponse Status: %d\n", status);
+    if (status < 0)
+    {
+        return false;
+    }
+
+    if ((response[0] & 0x3f) != 0) {
+        DMSG("Status code indicates an error\n");
+        return false;
+    }
+
+    uint8_t length = status;
+    length -= 1;
+
+    if (length > *responseLength) {
+        length = *responseLength; // silent truncation...
+    }
+
+    for (uint8_t i = 0; i < length; i++) {
+        response[i] = response[i + 1];
+    }
+    *responseLength = length;
+
+    return true;
+}
+/**************************************************************************/
+/*!
+    @brief  Exchanges an APDU with the currently inlisted peer
+
+    @param  send            Pointer to data to send
+    @param  sendLength      Length of the data to send
+    @param  response        Pointer to response data
+    @param  responseLength  Pointer to the response data length
+*/
+/**************************************************************************/
+bool PN532::inDataExchangeT4(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
+{
+    uint8_t i;
+
+    // PrintHex(send, sendLength);
+
+    pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
+    pn532_packetbuffer[1] = inListedTag;
+
+    if (HAL(writeCommand)(pn532_packetbuffer, 2, send, sendLength)) {
+        return false;
+    }
+
+    int16_t status = HAL(readResponseT4)(response, *responseLength, 1000);
+
+    // Serial.printf("\nResponse Status: %d\n", status);
+    if (status < 0)
+    {
         return false;
     }
 
@@ -881,7 +1036,7 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     @param  responseLength  Pointer to the response data length
 */
 /**************************************************************************/
-bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
+bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout)
 {
   pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
 
@@ -889,7 +1044,55 @@ bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *respon
     return false;
   }
 
-  int16_t status = HAL(readResponse)(response, *responseLength, 1000);
+  int16_t status = HAL(readResponse)(response, *responseLength, timeout);
+  if (status < 0) {
+    return false;
+  }
+
+  // check status code
+  if (response[0] != 0x0) {
+      DMSG("Status code indicates an error : 0x");
+      DMSG_HEX(pn532_packetbuffer[0]);
+      DMSG("\n");
+      return false;
+  }
+
+  uint8_t length = status;
+  length -= 1;
+
+  if (length > *responseLength) {
+      length = *responseLength; // silent truncation...
+  }
+
+  for (uint8_t i = 0; i < length; i++) {
+    response[i] = response[i + 1];
+  }
+  *responseLength = length;
+
+  return true;
+}
+
+/**************************************************************************/
+/*!
+    This command is used to support basic data exchanges
+    between the PN532 and a target.
+
+    @param  send            Pointer to the command buffer
+    @param  sendLength      Command length in bytes
+    @param  response        Pointer to response data
+    @param  responseLength  Pointer to the response data length
+*/
+/**************************************************************************/
+bool PN532::inCommunicateThruT4(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout)
+{
+  pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
+
+  if (HAL(writeCommand)(pn532_packetbuffer, 1, send, sendLength)) {
+    return false;
+  }
+
+  int16_t status = HAL(readResponseT4)(response, *responseLength, timeout);
+//   Serial.printf("\nResponse Status: %d\n", status);
   if (status < 0) {
     return false;
   }
@@ -935,7 +1138,7 @@ bool PN532::inListPassiveTarget()
         return false;
     }
 
-    int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), 30000);
+    int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), 1000);
     if (status < 0) {
         return false;
     }

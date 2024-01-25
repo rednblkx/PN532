@@ -1,7 +1,7 @@
 #ifndef __DEBUG_H__
 #define __DEBUG_H__
 
-//#define DEBUG
+// #define DEBUG
 
 #include "Arduino.h"
 
@@ -10,6 +10,9 @@
 #else
     #define SERIAL Serial
 #endif
+
+#define DHEX(num)       SERIAL.print(' '); SERIAL.print((num>>4)&0x0F, HEX); SERIAL.print(num&0x0F, HEX)
+
 
 #ifdef DEBUG
 #define DMSG(args...)       SERIAL.print(args)

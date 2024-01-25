@@ -1,6 +1,6 @@
 
-#include "PN532/PN532_SPI/PN532_SPI.h"
-#include "PN532/PN532/PN532_debug.h"
+#include "PN532_SPI.h"
+#include "PN532_debug.h"
 #include "Arduino.h"
 
 #define STATUS_READ 2
@@ -63,6 +63,133 @@ int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
     return 0;
 }
 
+int16_t PN532_SPI::readResponseT4(uint8_t buf[], uint8_t len, uint16_t timeout)
+{
+    uint16_t time = 0;
+    while (!isReady())
+    {
+        delay(1);
+        time++;
+        if (time > timeout)
+        {
+            return PN532_TIMEOUT;
+        }
+    }
+
+    digitalWrite(_ss, LOW);
+    delay(1);
+
+    int16_t result;
+    do
+    {
+        write(DATA_READ);
+
+        uint8_t PREAMBLE = read();
+        uint8_t STARTCODE1 = read();
+        uint8_t STARTCODE2 = read();
+
+        DMSG_HEX(PREAMBLE);
+        DMSG_HEX(STARTCODE1);
+        DMSG_HEX(STARTCODE2);
+        DMSG_STR("");
+
+        if (0x00 != PREAMBLE ||   // PREAMBLE
+            0x00 != STARTCODE1 || // STARTCODE1
+            0xFF != STARTCODE2    // STARTCODE2
+        )
+        {
+            DMSG_STR("PN532::INVALID HEADER");
+            result = PN532_INVALID_FRAME;
+            break;
+        }
+
+        uint8_t length = read();
+        uint8_t lcs = read();
+        uint8_t byte;
+        uint8_t dataLength;
+        DMSG_HEX(length);
+        DMSG_STR("");
+        DMSG_HEX(lcs);
+        if(length == 0xFF && lcs == 0xFF){
+            DMSG_STR("SOMETHING STRANGE");
+            read();
+            byte = read();
+            dataLength = read();
+            DMSG_HEX(byte);
+            DMSG_HEX(dataLength);
+            DMSG("che4cksum");
+            DMSG_HEX((uint8_t)(dataLength + byte));
+            if (0xFF != (uint8_t)(dataLength + byte))
+            {
+                DMSG("PN532::FAILED CHECKSUM LENGTH");
+                result = PN532_INVALID_FRAME;
+                break;
+            }
+        } else if (0 != (uint8_t)(length + lcs))
+        { // checksum of length
+            DMSG_STR("PN532::FAILED CHECKSUM LENGTH");
+            result = PN532_INVALID_FRAME;
+            break;
+        }
+
+        uint8_t cmd = command + 1; // response command
+        uint8_t TO_HOST = read();
+        uint8_t CMD_TO_HOST = read();
+        DMSG_HEX(TO_HOST);
+        DMSG_HEX(CMD_TO_HOST);
+        // printf("\n");
+        if (PN532_PN532TOHOST != TO_HOST || (cmd) != CMD_TO_HOST)
+        {
+            result = PN532_INVALID_FRAME;
+            DMSG_STR("PN532::COMMAND NOT VALID");
+            break;
+        }
+
+        DMSG("read:  ");
+        DMSG_HEX(cmd);
+        // printf("\n");
+
+        length -= (lcs == 0xFF ? 1 : 2);
+        if (length > len)
+        {
+            for (uint8_t i = 0; i < length; i++)
+            {
+                DMSG_HEX(read()); // dump message
+            }
+            DMSG("\nNot enough space\n");
+            read();
+            read();
+            result = PN532_NO_SPACE; // not enough space
+            break;
+        }
+
+        uint8_t sum = PN532_PN532TOHOST + cmd;
+        for (uint8_t i = 0; i < length; i++)
+        {
+            buf[i] = read();
+            sum += buf[i];
+
+            DMSG_HEX(buf[i]);
+        }
+        DMSG('\n');
+        uint8_t checksum = read();
+        DMSG_HEX(checksum);
+        if (0 != (uint8_t)(sum + checksum))
+        {
+            DMSG("checksum is not ok\n");
+            // result = PN532_INVALID_FRAME;
+            // break;
+        }
+        uint8_t POSTAMBLE = read(); // POSTAMBLE
+
+        result = length;
+    } while (0);
+
+    digitalWrite(_ss, HIGH);
+
+    return result;
+}
+
 int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
 {
     uint16_t time = 0;
@@ -84,32 +211,58 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
     {
         write(DATA_READ);
 
-        if (0x00 != read() || // PREAMBLE
-            0x00 != read() || // STARTCODE1
-            0xFF != read()    // STARTCODE2
+        uint8_t PREAMBLE = read();
+        uint8_t STARTCODE1 = read();
+        uint8_t STARTCODE2 = read();
+
+        DMSG_HEX(PREAMBLE);
+        DMSG_HEX(STARTCODE1);
+        DMSG_HEX(STARTCODE2);
+        DMSG_STR("");
+
+        if (0x00 != PREAMBLE ||   // PREAMBLE
+            0x00 != STARTCODE1 || // STARTCODE1
+            0xFF != STARTCODE2    // STARTCODE2
         )
         {
-
+            DMSG("PN532::INVALID HEADER");
             result = PN532_INVALID_FRAME;
             break;
         }
 
         uint8_t length = read();
-        if (0 != (uint8_t)(length + read()))
+        uint8_t length1 = read();
+        DMSG_STR("");
+        DMSG_HEX(length);
+        DMSG_HEX(length1);
+        DMSG_STR("");
+        if (0 != (uint8_t)(length + length1))
         { // checksum of length
+            DMSG("PN532::FAILED CHECKSUM LENGTH");
             result = PN532_INVALID_FRAME;
             break;
         }
 
         uint8_t cmd = command + 1; // response command
-        if (PN532_PN532TOHOST != read() || (cmd) != read())
+        uint8_t TO_HOST = read();
+        uint8_t CMD_TO_HOST = read();
+        DMSG_STR("");
+        DMSG_HEX(TO_HOST);
+        DMSG_HEX(CMD_TO_HOST);
+        DMSG_STR("");
+        if (PN532_PN532TOHOST != TO_HOST || (cmd) != CMD_TO_HOST)
         {
             result = PN532_INVALID_FRAME;
-            break;
+            DMSG("PN532::COMMAND NOT VALID");
+            // DMSG_HEX(TO_HOST);
+            DMSG_STR("");
+            // DMSG_HEX(CMD_TO_HOST);
+            // break;
         }
 
         DMSG("read:  ");
         DMSG_HEX(cmd);
+        DMSG_STR("");
 
         length -= 2;
         if (length > len)
