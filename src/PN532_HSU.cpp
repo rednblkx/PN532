@@ -2,15 +2,24 @@
 #include "PN532_HSU.h"
 #include "PN532_debug.h"
 
-PN532_HSU::PN532_HSU(HardwareSerial &serial)
+PN532_HSU::PN532_HSU(HardwareSerial &serial, uint8_t tx, uint8_t rx)
 {
     _serial = &serial;
+    _tx_pin = tx;
+    _rx_pin = rx;
     command = 0;
 }
 
 void PN532_HSU::begin()
 {
-    _serial->begin(115200);
+    if (_tx_pin && _rx_pin)
+    {
+        _serial->begin(115200, SERIAL_8N1, _tx_pin, _rx_pin);
+    }
+    else 
+    {
+        _serial->begin(115200);
+    }
 }
 
 void PN532_HSU::wakeup()
