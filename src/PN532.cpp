@@ -937,8 +937,6 @@ uint8_t PN532::mifareultralight_WritePage (uint8_t page, uint8_t *buffer)
 /**************************************************************************/
 bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
 {
-    uint8_t i;
-
     // PrintHex(send, sendLength);
 
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
@@ -949,56 +947,6 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     }
 
     int16_t status = HAL(readResponse)(response, *responseLength, 1000);
-    // Serial.printf("\nResponse Status: %d\n", status);
-    if (status < 0)
-    {
-        return false;
-    }
-
-    if ((response[0] & 0x3f) != 0) {
-        DMSG("Status code indicates an error\n");
-        return false;
-    }
-
-    uint8_t length = status;
-    length -= 1;
-
-    if (length > *responseLength) {
-        length = *responseLength; // silent truncation...
-    }
-
-    for (uint8_t i = 0; i < length; i++) {
-        response[i] = response[i + 1];
-    }
-    *responseLength = length;
-
-    return true;
-}
-/**************************************************************************/
-/*!
-    @brief  Exchanges an APDU with the currently inlisted peer
-
-    @param  send            Pointer to data to send
-    @param  sendLength      Length of the data to send
-    @param  response        Pointer to response data
-    @param  responseLength  Pointer to the response data length
-*/
-/**************************************************************************/
-bool PN532::inDataExchangeT4(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
-{
-    uint8_t i;
-
-    // PrintHex(send, sendLength);
-
-    pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
-    pn532_packetbuffer[1] = inListedTag;
-
-    if (HAL(writeCommand)(pn532_packetbuffer, 2, send, sendLength)) {
-        return false;
-    }
-
-    int16_t status = HAL(readResponseT4)(response, *responseLength, 1000);
-
     // Serial.printf("\nResponse Status: %d\n", status);
     if (status < 0)
     {
@@ -1045,54 +993,6 @@ bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *respon
   }
 
   int16_t status = HAL(readResponse)(response, *responseLength, timeout);
-  if (status < 0) {
-    return false;
-  }
-
-  // check status code
-  if (response[0] != 0x0) {
-      DMSG("Status code indicates an error : 0x");
-      DMSG_HEX(pn532_packetbuffer[0]);
-      DMSG("\n");
-      return false;
-  }
-
-  uint8_t length = status;
-  length -= 1;
-
-  if (length > *responseLength) {
-      length = *responseLength; // silent truncation...
-  }
-
-  for (uint8_t i = 0; i < length; i++) {
-    response[i] = response[i + 1];
-  }
-  *responseLength = length;
-
-  return true;
-}
-
-/**************************************************************************/
-/*!
-    This command is used to support basic data exchanges
-    between the PN532 and a target.
-
-    @param  send            Pointer to the command buffer
-    @param  sendLength      Command length in bytes
-    @param  response        Pointer to response data
-    @param  responseLength  Pointer to the response data length
-*/
-/**************************************************************************/
-bool PN532::inCommunicateThruT4(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout)
-{
-  pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
-
-  if (HAL(writeCommand)(pn532_packetbuffer, 1, send, sendLength)) {
-    return false;
-  }
-
-  int16_t status = HAL(readResponseT4)(response, *responseLength, timeout);
-//   Serial.printf("\nResponse Status: %d\n", status);
   if (status < 0) {
     return false;
   }
