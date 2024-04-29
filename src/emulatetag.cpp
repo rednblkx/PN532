@@ -249,7 +249,7 @@ bool EmulateTag::emulate(const uint16_t tgInitAsTargetTimeout)
       break;
     default:
       DMSG("Command not supported!");
-      DMSG_HEX(rwbuf[C_APDU_INS]);
+      DMSG("%02x", rwbuf[C_APDU_INS]);
       DMSG("\n");
       setResponse(FUNCTION_NOT_SUPPORTED, rwbuf, &sendlen);
     }

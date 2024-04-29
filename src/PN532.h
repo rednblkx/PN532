@@ -10,6 +10,7 @@
 #define __PN532_H__
 
 #include <stdint.h>
+#include <stdio.h>
 #include "PN532Interface.h"
 
 // PN532 Commands

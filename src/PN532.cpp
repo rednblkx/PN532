@@ -6,7 +6,6 @@
 */
 /**************************************************************************/
 
-#include "Arduino.h"
 #include "PN532.h"
 #include "PN532_debug.h"
 #include <string.h>
@@ -235,7 +234,7 @@ bool PN532::writeGPIO(uint8_t pinstate)
     pn532_packetbuffer[2] = 0x00;    // P7 GPIO Pins (not used ... taken by I2C)
 
     DMSG("Writing P3 GPIO: ");
-    DMSG_HEX(pn532_packetbuffer[1]);
+    DMSG("%02x", pn532_packetbuffer[1]);
     DMSG("\n");
 
     // Send the WRITEGPIO command (0x0E)
@@ -279,9 +278,9 @@ uint8_t PN532::readGPIO(void)
     */
 
 
-    DMSG("P3 GPIO: "); DMSG_HEX(pn532_packetbuffer[7]);
-    DMSG("P7 GPIO: "); DMSG_HEX(pn532_packetbuffer[8]);
-    DMSG("I0I1 GPIO: "); DMSG_HEX(pn532_packetbuffer[9]);
+    DMSG("P3 GPIO: "); DMSG("%02x", pn532_packetbuffer[7]);
+    DMSG("P7 GPIO: "); DMSG("%02x", pn532_packetbuffer[8]);
+    DMSG("I0I1 GPIO: "); DMSG("%02x", pn532_packetbuffer[9]);
     DMSG("\n");
 
     return pn532_packetbuffer[0];
@@ -483,8 +482,8 @@ bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uid
     sens_res <<= 8;
     sens_res |= pn532_packetbuffer[3];
 
-    DMSG("ATQA: 0x");  DMSG_HEX(sens_res);
-    DMSG("SAK: 0x");  DMSG_HEX(pn532_packetbuffer[4]);
+    DMSG("ATQA: 0x");  DMSG("%02x", sens_res);
+    DMSG("SAK: 0x");  DMSG("%02x", pn532_packetbuffer[4]);
     DMSG("\n");
 
     /* Card appears to be Mifare Classic */
@@ -551,8 +550,8 @@ bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uid
     sens_res <<= 8;
     sens_res |= pn532_packetbuffer[3];
 
-    DMSG("ATQA: 0x");  DMSG_HEX(sens_res);
-    DMSG("SAK: 0x");  DMSG_HEX(pn532_packetbuffer[4]);
+    DMSG("ATQA: 0x");  DMSG("%02x", sens_res);
+    DMSG("SAK: 0x");  DMSG("%02x", pn532_packetbuffer[4]);
     DMSG("\n");
 
     memcpy(atqa, &sens_res, sizeof(sens_res));
@@ -675,7 +674,7 @@ uint8_t PN532::mifareclassic_AuthenticateBlock (uint8_t *uid, uint8_t uidLen, ui
 uint8_t PN532::mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8_t *data)
 {
     DMSG("Trying to read 16 bytes from block ");
-    DMSG_INT(blockNumber);
+    DMSG("%d",blockNumber);
 
     /* Prepare the command */
     pn532_packetbuffer[0] = PN532_COMMAND_INDATAEXCHANGE;
@@ -737,7 +736,7 @@ uint8_t PN532::mifareclassic_WriteDataBlock (uint8_t blockNumber, uint8_t *data)
     /* Check status */
     if (pn532_packetbuffer[0] != 0x00) {
     	DMSG("Status code indicates an error: ");
-    	DMSG_HEX(pn532_packetbuffer[0]);
+    	DMSG("%02x", pn532_packetbuffer[0]);
     	DMSG("\n");
         return 0;
     }
@@ -1000,7 +999,7 @@ bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *respon
   // check status code
   if (response[0] != 0x0) {
       DMSG("Status code indicates an error : 0x");
-      DMSG_HEX(pn532_packetbuffer[0]);
+      DMSG("%02x", pn532_packetbuffer[0]);
       DMSG("\n");
       return false;
   }
@@ -1216,14 +1215,14 @@ int8_t PN532::felica_Polling(uint16_t systemCode, uint8_t requestCode, uint8_t *
     return 0;
   } else if (pn532_packetbuffer[0] != 1) {
     DMSG("Unhandled number of targets inlisted. NbTg: ");
-    DMSG_HEX(pn532_packetbuffer[7]);
+    DMSG("%02x", pn532_packetbuffer[7]);
     DMSG("\n");
     return -3;
   }
 
   inListedTag = pn532_packetbuffer[1];
   DMSG("Tag number: ");
-  DMSG_HEX(pn532_packetbuffer[1]);
+  DMSG("%02x", pn532_packetbuffer[1]);
   DMSG("\n");
 
   // length check
@@ -1286,7 +1285,7 @@ int8_t PN532::felica_SendCommand (const uint8_t *command, uint8_t commandlength,
   // Check status (pn532_packetbuffer[0])
   if ((pn532_packetbuffer[0] & 0x3F)!=0) {
     DMSG("Status code indicates an error: ");
-    DMSG_HEX(pn532_packetbuffer[0]);
+    DMSG("%02x", pn532_packetbuffer[0]);
     DMSG("\n");
     return -4;
   }
@@ -1446,8 +1445,8 @@ int8_t PN532::felica_ReadWithoutEncryption (uint8_t numService, const uint16_t *
   // status flag check
   if ( response[9] != 0 || response[10] != 0 ) {
     DMSG("Read Without Encryption command failed (Status Flag: ");
-    DMSG_HEX(pn532_packetbuffer[9]);
-    DMSG_HEX(pn532_packetbuffer[10]);
+    DMSG("%02x", pn532_packetbuffer[9]);
+    DMSG("%02x", pn532_packetbuffer[10]);
     DMSG(")\n");
     return -5;
   }
@@ -1526,8 +1525,8 @@ int8_t PN532::felica_WriteWithoutEncryption (uint8_t numService, const uint16_t 
   // status flag check
   if ( response[9] != 0 || response[10] != 0 ) {
     DMSG("Write Without Encryption command failed (Status Flag: ");
-    DMSG_HEX(pn532_packetbuffer[9]);
-    DMSG_HEX(pn532_packetbuffer[10]);
+    DMSG("%02x", pn532_packetbuffer[9]);
+    DMSG("%02x", pn532_packetbuffer[10]);
     DMSG(")\n");
     return -5;
   }
@@ -1603,7 +1602,7 @@ int8_t PN532::felica_Release()
   // Check status (pn532_packetbuffer[0])
   if ((pn532_packetbuffer[0] & 0x3F)!=0) {
     DMSG("Status code indicates an error: ");
-    DMSG_HEX(pn532_packetbuffer[7]);
+    DMSG("%02x", pn532_packetbuffer[7]);
     DMSG("\n");
     return -3;
   }

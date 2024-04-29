@@ -1,24 +1,17 @@
 #ifndef __DEBUG_H__
 #define __DEBUG_H__
 
-// #define DEBUG
+#define DEBUG
+#include <esp_log.h>
 
-#include "Arduino.h"
-
-#ifdef ARDUINO_SAMD_VARIANT_COMPLIANCE
-    #define SERIAL SerialUSB
-#else
-    #define SERIAL Serial
-#endif
-
-#define DHEX(num)       SERIAL.print(' '); SERIAL.print((num>>4)&0x0F, HEX); SERIAL.print(num&0x0F, HEX)
-
+// #ifdef ARDUINO_SAMD_VARIANT_COMPLIANCE
+//     #define SERIAL SerialUSB
+// #else
+//     #define SERIAL Serial
+// #endif
 
 #ifdef DEBUG
-#define DMSG(args...)       SERIAL.print(args)
-#define DMSG_STR(str)       SERIAL.println(str)
-#define DMSG_HEX(num)       SERIAL.print(' '); SERIAL.print((num>>4)&0x0F, HEX); SERIAL.print(num&0x0F, HEX)
-#define DMSG_INT(num)       SERIAL.print(' '); SERIAL.print(num)
+#define DMSG(fmt, ...) ESP_LOGI("PN532", fmt, ##__VA_ARGS__)
 #else
 #define DMSG(args...)
 #define DMSG_STR(str)

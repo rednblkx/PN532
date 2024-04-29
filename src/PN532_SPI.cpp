@@ -1,42 +1,75 @@
 
 #include "PN532_SPI.h"
 #include "PN532_debug.h"
-#include "Arduino.h"
+#include <string.h>
+#include <vector>
 
-#define STATUS_READ 2
-#define DATA_WRITE 1
-#define DATA_READ 3
+#define STATUS_READ 0x02
+#define DATA_WRITE 0x01
+#define DATA_READ 0x03
 
-PN532_SPI::PN532_SPI(SPIClass &spi, uint8_t ss)
+using namespace std;
+
+PN532_SPI::PN532_SPI()
 {
-    command = 0;
-    _spi = &spi;
-    _ss = ss;
+    gpio_config_t ss_conf = {};
+    ss_conf.pin_bit_mask = (1ULL << CONFIG_PN532_SS);
+    ss_conf.mode = GPIO_MODE_INPUT_OUTPUT;
+    ss_conf.intr_type = GPIO_INTR_DISABLE;
+    ss_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    ss_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config_t sck_conf = {};
+    sck_conf.pin_bit_mask = (1ULL << CONFIG_PN532_SCK);
+    sck_conf.mode = GPIO_MODE_INPUT_OUTPUT;
+    sck_conf.intr_type = GPIO_INTR_DISABLE;
+    sck_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    sck_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config_t miso_conf = {};
+    miso_conf.pin_bit_mask = (1ULL << CONFIG_PN532_MISO);
+    miso_conf.mode = GPIO_MODE_INPUT;
+    miso_conf.intr_type = GPIO_INTR_DISABLE;
+    miso_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    miso_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config_t mosi_conf = {};
+    mosi_conf.pin_bit_mask = (1ULL << CONFIG_PN532_MOSI);
+    mosi_conf.mode = GPIO_MODE_INPUT_OUTPUT;
+    mosi_conf.intr_type = GPIO_INTR_DISABLE;
+    mosi_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    mosi_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&ss_conf);
+    gpio_config(&sck_conf);
+    gpio_config(&miso_conf);
+    gpio_config(&mosi_conf);
+    spi_bus_config_t buscfg = {
+        .mosi_io_num = _mosi,
+        .miso_io_num = _miso,
+        .sclk_io_num = _clk,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 255
+    };
+    spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
 }
 
 void PN532_SPI::begin()
 {
-    pinMode(_ss, OUTPUT);
-
-    _spi->begin();
-    _spi->setDataMode(SPI_MODE0); // PN532 only supports mode0
-    _spi->setBitOrder(LSBFIRST);
-#if defined __SAM3X8E__
-    /** DUE spi library does not support SPI_CLOCK_DIV8 macro */
-    _spi->setClockDivider(42); // set clock 2MHz(max: 5MHz)
-#elif defined __SAMD21G18A__
-    /** M0 spi library does not support SPI_CLOCK_DIV8 macro */
-    _spi->setClockDivider(24); // set clock 2MHz(max: 5MHz)
-#else
-    _spi->setClockDivider(SPI_CLOCK_DIV8); // set clock 2MHz(max: 5MHz)
-#endif
+    spi_device_interface_config_t devcfg = {
+        .command_bits = 0,
+        .address_bits = 0,
+        .mode = 0,                              //SPI mode 0
+        .clock_speed_hz = 2 * 1000 * 1000,     //Clock out at 2 MHz
+        .spics_io_num = -1,
+        .flags = SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_BIT_LSBFIRST,
+        .queue_size = 1,
+    };
+    spi_bus_add_device(SPI2_HOST, &devcfg, &spi);
 }
 
 void PN532_SPI::wakeup()
 {
-    digitalWrite(_ss, LOW);
-    delay(2);
-    digitalWrite(_ss, HIGH);
+    gpio_set_level(_ss, 0);
+    vTaskDelay(2 / portTICK_PERIOD_MS);
+    gpio_set_level(_ss, 1);
 }
 
 int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen)
@@ -47,7 +80,7 @@ int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
     uint8_t timeout = PN532_ACK_WAIT_TIME;
     while (!isReady())
     {
-        delay(1);
+        vTaskDelay(1 / portTICK_PERIOD_MS);
         timeout--;
         if (0 == timeout)
         {
@@ -68,197 +101,176 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
     uint16_t time = 0;
     while (!isReady())
     {
-        delay(1);
+        vTaskDelay(1 / portTICK_PERIOD_MS);
         time++;
         if (time > timeout)
         {
+            DMSG("readResponse: Time out when waiting for ACK\n");
             return PN532_TIMEOUT;
         }
     }
 
-    digitalWrite(_ss, LOW);
-    delay(1);
+    gpio_set_level(_ss, 0);
+    vTaskDelay(1 / portTICK_PERIOD_MS);
 
     int16_t result;
     do
     {
-        write(DATA_READ);
+        // cmd(DATA_READ);
+        uint8_t* header = (uint8_t *)heap_caps_malloc(5 * sizeof(uint8_t), MALLOC_CAP_DMA);
 
-        uint8_t PREAMBLE = read();
-        uint8_t STARTCODE1 = read();
-        uint8_t STARTCODE2 = read();
+        read(header, 4, false, true);
+        read(&header[4]);
+        DMSG("PREAMBLE: %02x", header[0]);
+        DMSG("STARTCODE: 0x%02x , 0x%02X", header[1], header[2]);
 
-        DMSG_HEX(PREAMBLE);
-        DMSG_HEX(STARTCODE1);
-        DMSG_HEX(STARTCODE2);
-        DMSG_STR("");
-
-        if (0x00 != PREAMBLE ||   // PREAMBLE
-            0x00 != STARTCODE1 || // STARTCODE1
-            0xFF != STARTCODE2    // STARTCODE2
+        if (0x00 != header[0] ||   // PREAMBLE
+            0x00 != header[1] || // STARTCODE1
+            0xFF != header[2]    // STARTCODE2
         )
         {
-            DMSG_STR("PN532::INVALID HEADER");
+            DMSG("PN532::INVALID HEADER");
             result = PN532_INVALID_FRAME;
             break;
         }
-
-        uint8_t length = read();
-        uint8_t lcs = read();
-        uint8_t byte;
-        uint8_t dataLength;
-        DMSG_HEX(length);
-        DMSG_STR("");
-        DMSG_HEX(lcs);
-        if(length == 0xFF && lcs == 0xFF){
-            DMSG_STR("SOMETHING STRANGE");
-            read();
-            byte = read();
-            dataLength = read();
-            DMSG_HEX(byte);
-            DMSG_HEX(dataLength);
+        DMSG("DATA LENGTH: %02x", header[3]);
+        DMSG("LENGTH CHECKSUM: %02x", header[4]);
+        uint8_t msByte, lsByte, lcs;
+        uint8_t len = header[3];
+        if (header[3] == 0xFF && header[4] == 0xFF) {
+            DMSG("SOMETHING STRANGE");
+            read(&msByte, 1);
+            read(&lsByte, 1);
+            read(&lcs, 1);
             DMSG("che4cksum");
-            DMSG_HEX((uint8_t)(dataLength + byte));
-            if (0xFF != (uint8_t)(dataLength + byte))
+            DMSG("%02x", (uint8_t)(msByte + lsByte + lcs));
+            if (0 != (uint8_t)(msByte + lsByte + lcs))
             {
-                DMSG("PN532::FAILED CHECKSUM LENGTH");
+                DMSG("PN532::FAILED EXTENDED CHECKSUM LENGTH");
                 result = PN532_INVALID_FRAME;
                 break;
             }
-        } else if (0 != (uint8_t)(length + lcs))
+            len = msByte * 256 + lsByte;
+        }
+        else if (0 != (uint8_t)(header[3] + header[4]))
         { // checksum of length
-            DMSG_STR("PN532::FAILED CHECKSUM LENGTH");
+            DMSG("PN532::FAILED CHECKSUM LENGTH");
             result = PN532_INVALID_FRAME;
             break;
         }
-
-        uint8_t cmd = command + 1; // response command
-        uint8_t TO_HOST = read();
-        uint8_t CMD_TO_HOST = read();
-        DMSG_HEX(TO_HOST);
-        DMSG_HEX(CMD_TO_HOST);
-        // printf("\n");
-        if (PN532_PN532TOHOST != TO_HOST || (cmd) != CMD_TO_HOST)
+        uint8_t* body = (uint8_t*)heap_caps_malloc(header[3] * sizeof(uint8_t), MALLOC_CAP_DMA);
+        read(body, header[3]);
+        if (PN532_PN532TOHOST != body[0] || (command + 1) != body[1])
         {
             result = PN532_INVALID_FRAME;
-            DMSG_STR("PN532::COMMAND NOT VALID");
+            DMSG("PN532::COMMAND NOT VALID");
             break;
         }
 
-        DMSG("read:  ");
-        DMSG_HEX(cmd);
-        // printf("\n");
+        DMSG("TFI: %02x", body[0]);
+        DMSG("CMD: %02x", body[1]);
 
-        length -= (lcs == 0xFF ? 1 : 2);
-        if (length > len)
+        // header[3] -= (header[4] == 0xFF ? 1 : 2);
+        if (header[3] > len)
         {
-            for (uint8_t i = 0; i < length; i++)
-            {
-                DMSG_HEX(read()); // dump message
-            }
+            uint8_t *dataBuf = (uint8_t *)heap_caps_malloc(header[3] * sizeof(uint8_t), MALLOC_CAP_DMA);
+            read(dataBuf, header[3]);
             DMSG("\nNot enough space\n");
-            read();
-            read();
             result = PN532_NO_SPACE; // not enough space
+            heap_caps_free(dataBuf);
             break;
         }
 
-        uint8_t sum = PN532_PN532TOHOST + cmd;
-        for (uint8_t i = 0; i < length; i++)
+        uint8_t sum = PN532_PN532TOHOST + body[1];
+        memcpy(buf, body + 2, header[3] - 2);
+        for (uint8_t i = 0; i < header[3] - 2; i++)
         {
-            buf[i] = read();
             sum += buf[i];
-
-            DMSG_HEX(buf[i]);
+            DMSG("%02x", buf[i]);
         }
-        DMSG('\n');
-        uint8_t checksum = read();
-        DMSG_HEX(checksum);
+        uint8_t checksum;
+        read(&checksum);
+        DMSG("DATA CHECKSUM: %02x", checksum);
         if (0 != (uint8_t)(sum + checksum))
         {
             DMSG("checksum is not ok\n");
             result = PN532_INVALID_FRAME;
             break;
         }
-        uint8_t POSTAMBLE = read(); // POSTAMBLE
+        uint8_t POSTAMBLE;
+        read(&POSTAMBLE); // POSTAMBLE
 
-        result = length;
+        result = len;
+        heap_caps_free(header);
     } while (0);
 
-    digitalWrite(_ss, HIGH);
-
+    gpio_set_level(_ss, 1);
     return result;
 }
 
 bool PN532_SPI::isReady()
 {
-    digitalWrite(_ss, LOW);
-
-    write(STATUS_READ);
-    uint8_t status = read() & 1;
-    digitalWrite(_ss, HIGH);
-    return status;
+    gpio_set_level(_ss, 0);
+    uint8_t status;
+    read(&status, 1, true, true);
+    ESP_LOGI("PN532 - isReady", "%02x", status);
+    gpio_set_level(_ss, 1);
+    return status & 1;
 }
 
-void PN532_SPI::writeFrame(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen)
-{
-    digitalWrite(_ss, LOW);
-    delay(2); // wake up PN532
-
-    write(DATA_WRITE);
-    write(PN532_PREAMBLE);
-    write(PN532_STARTCODE1);
-    write(PN532_STARTCODE2);
-
+void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* body, uint8_t blen) {
+    gpio_set_level(_ss, 0);
+    vTaskDelay(2 / portTICK_PERIOD_MS); // wake up PN532
     uint8_t length = hlen + blen + 1; // length of data field: TFI + DATA
-    write(length);
-    write(~length + 1); // checksum of length
+    std::vector<uint8_t> data{ PN532_PREAMBLE, PN532_STARTCODE1, PN532_STARTCODE2, length, (uint8_t)(~length + 1), PN532_HOSTTOPN532 };
 
-    write(PN532_HOSTTOPN532);
     uint8_t sum = PN532_HOSTTOPN532; // sum of TFI + DATA
 
     DMSG("write: ");
 
     for (uint8_t i = 0; i < hlen; i++)
     {
-        write(header[i]);
+        data.push_back(header[i]);
         sum += header[i];
 
-        DMSG_HEX(header[i]);
+        DMSG("%02x", header[i]);
     }
     for (uint8_t i = 0; i < blen; i++)
     {
-        write(body[i]);
+        data.push_back(body[i]);
         sum += body[i];
 
-        DMSG_HEX(body[i]);
+        DMSG("%02x", body[i]);
     }
 
     uint8_t checksum = ~sum + 1; // checksum of TFI + DATA
-    write(checksum);
-    write(PN532_POSTAMBLE);
+    data.push_back(checksum);
+    data.push_back(PN532_POSTAMBLE);
+    ESP_LOG_BUFFER_HEX("PN532 - writeFrame", data.data(), data.size());
+    write(data.data(), data.size(), true);
 
-    digitalWrite(_ss, HIGH);
+    gpio_set_level(_ss, 1);
 
-    DMSG('\n');
+    DMSG("\n");
 }
 
 int8_t PN532_SPI::readAckFrame()
 {
     const uint8_t PN532_ACK[] = {0, 0, 0xFF, 0, 0xFF, 0};
 
-    uint8_t ackBuf[sizeof(PN532_ACK)];
+    uint8_t ackBuf[sizeof(PN532_ACK)] = { };
 
-    digitalWrite(_ss, LOW);
-    delay(1);
-    write(DATA_READ);
+    gpio_set_level(_ss, 0);
+    vTaskDelay(1 / portTICK_PERIOD_MS);
+
+    read(ackBuf, 6, false, true);
 
     for (uint8_t i = 0; i < sizeof(PN532_ACK); i++)
     {
-        ackBuf[i] = read();
+        DMSG("%02x", ackBuf[i]);
     }
 
-    digitalWrite(_ss, HIGH);
+    gpio_set_level(_ss, 1);
 
     return memcmp(ackBuf, PN532_ACK, sizeof(PN532_ACK));
 }
