@@ -213,7 +213,7 @@ bool PN532_SPI::isReady()
     gpio_set_level(_ss, 0);
     uint8_t status;
     read(&status, 1, true, true);
-    ESP_LOGI("PN532 - isReady", "%02x", status);
+    DMSG_STR("PN532 - isReady", "%02x", status);
     gpio_set_level(_ss, 1);
     return status & 1;
 }
@@ -222,7 +222,7 @@ void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* b
     gpio_set_level(_ss, 0);
     vTaskDelay(2 / portTICK_PERIOD_MS); // wake up PN532
     uint8_t length = hlen + blen + 1; // length of data field: TFI + DATA
-    std::vector<uint8_t> data{ PN532_PREAMBLE, PN532_STARTCODE1, PN532_STARTCODE2, length, (uint8_t)(~length + 1), PN532_HOSTTOPN532 };
+    uint8_t data[6 + length + 1] = { PN532_PREAMBLE, PN532_STARTCODE1, PN532_STARTCODE2, length, (uint8_t)(~length + 1), PN532_HOSTTOPN532 };
 
     uint8_t sum = PN532_HOSTTOPN532; // sum of TFI + DATA
 
@@ -230,24 +230,24 @@ void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* b
 
     for (uint8_t i = 0; i < hlen; i++)
     {
-        data.push_back(header[i]);
+        data[6 + i] = header[i];
         sum += header[i];
 
         DMSG("%02x", header[i]);
     }
     for (uint8_t i = 0; i < blen; i++)
     {
-        data.push_back(body[i]);
+        data[6 + hlen + i] = body[i];
         sum += body[i];
 
         DMSG("%02x", body[i]);
     }
 
     uint8_t checksum = ~sum + 1; // checksum of TFI + DATA
-    data.push_back(checksum);
-    data.push_back(PN532_POSTAMBLE);
-    ESP_LOG_BUFFER_HEX("PN532 - writeFrame", data.data(), data.size());
-    write(data.data(), data.size(), true);
+    data[6 + length - 1] = checksum;
+    data[6 + length] = PN532_POSTAMBLE;
+    DMSG_HEX("PN532 - writeFrame", data, sizeof(data));
+    write(data, sizeof(data), true);
 
     gpio_set_level(_ss, 1);
 
