@@ -114,13 +114,13 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
     vTaskDelay(1 / portTICK_PERIOD_MS);
 
     int16_t result;
+    DMSG("read:");
     do
     {
         // cmd(DATA_READ);
         uint8_t* header = (uint8_t *)heap_caps_malloc(5 * sizeof(uint8_t), MALLOC_CAP_DMA);
 
-        read(header, 4, false, true);
-        read(&header[4]);
+        read(header, 5, false, true);
         DMSG("PREAMBLE: %02x", header[0]);
         DMSG("STARTCODE: 0x%02x , 0x%02X", header[1], header[2]);
 
@@ -131,6 +131,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         {
             DMSG("PN532::INVALID HEADER");
             result = PN532_INVALID_FRAME;
+            heap_caps_free(header);
             break;
         }
         DMSG("DATA LENGTH: %02x", header[3]);
@@ -148,6 +149,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
             {
                 DMSG("PN532::FAILED EXTENDED CHECKSUM LENGTH");
                 result = PN532_INVALID_FRAME;
+                heap_caps_free(header);
                 break;
             }
             len = msByte * 256 + lsByte;
@@ -156,6 +158,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         { // checksum of length
             DMSG("PN532::FAILED CHECKSUM LENGTH");
             result = PN532_INVALID_FRAME;
+            heap_caps_free(header);
             break;
         }
         uint8_t* body = (uint8_t*)heap_caps_malloc(header[3] * sizeof(uint8_t), MALLOC_CAP_DMA);
@@ -164,6 +167,8 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         {
             result = PN532_INVALID_FRAME;
             DMSG("PN532::COMMAND NOT VALID");
+            heap_caps_free(header);
+            heap_caps_free(body);
             break;
         }
 
@@ -173,11 +178,13 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         // header[3] -= (header[4] == 0xFF ? 1 : 2);
         if (header[3] > len)
         {
-            uint8_t *dataBuf = (uint8_t *)heap_caps_malloc(header[3] * sizeof(uint8_t), MALLOC_CAP_DMA);
-            read(dataBuf, header[3]);
+            // uint8_t *dataBuf = (uint8_t *)heap_caps_malloc(header[3] * sizeof(uint8_t), MALLOC_CAP_DMA);
+            // read(dataBuf, header[3]);
             DMSG("\nNot enough space\n");
             result = PN532_NO_SPACE; // not enough space
-            heap_caps_free(dataBuf);
+            // heap_caps_free(dataBuf);
+            heap_caps_free(header);
+            heap_caps_free(body);
             break;
         }
 
@@ -186,22 +193,29 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         for (uint8_t i = 0; i < header[3] - 2; i++)
         {
             sum += buf[i];
-            DMSG("%02x", buf[i]);
+            // DMSG("buf: %02x", buf[i]);
+            DMSG("body: %02x", body[i]);
         }
         uint8_t checksum;
         read(&checksum);
         DMSG("DATA CHECKSUM: %02x", checksum);
+        DMSG("SUM: %02x", checksum);
+        DMSG("CHECKSUM VERIFY: %02x", sum + checksum);
         if (0 != (uint8_t)(sum + checksum))
         {
             DMSG("checksum is not ok\n");
             result = PN532_INVALID_FRAME;
+            heap_caps_free(header);
+            heap_caps_free(body);
             break;
         }
         uint8_t POSTAMBLE;
         read(&POSTAMBLE); // POSTAMBLE
+        DMSG("POSTAMBLE: %02X", POSTAMBLE);
 
         result = len;
         heap_caps_free(header);
+        heap_caps_free(body);
     } while (0);
 
     gpio_set_level(_ss, 1);
