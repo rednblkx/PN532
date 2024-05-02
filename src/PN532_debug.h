@@ -1,7 +1,7 @@
 #ifndef __DEBUG_H__
 #define __DEBUG_H__
 
-// #define DEBUG
+#define DEBUG
 #include <esp_log.h>
 
 // #ifdef ARDUINO_SAMD_VARIANT_COMPLIANCE
@@ -16,6 +16,7 @@
 #define DMSG_HEX(tag, buf, len) ESP_LOG_BUFFER_HEX(tag, buf, len)
 #else
 #define DMSG(args...)
+#define DMSG_STR(tag, fmt, ...)
 #define DMSG_HEX(tag, buf, len)
 #define DMSG_INT(num)
 #endif

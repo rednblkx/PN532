@@ -117,14 +117,17 @@ uint32_t PN532::getFirmwareVersion(void)
     uint32_t response;
 
     pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
-
+    // ESP_LOGI("PN532", "VERSION");
     if (HAL(writeCommand)(pn532_packetbuffer, 1)) {
+        ESP_LOGI("PN532", "VERSION error");
         return 0;
     }
 
+    // ESP_LOGI("PN532", "VERSION test");
     // read data packet
     int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer));
     if (0 > status) {
+        ESP_LOGI("PN532", "VERSION length");
         return 0;
     }
 
@@ -937,25 +940,37 @@ uint8_t PN532::mifareultralight_WritePage (uint8_t page, uint8_t *buffer)
 bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
 {
     // PrintHex(send, sendLength);
+    ESP_LOGI("PN532", "TEST1");
 
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
     pn532_packetbuffer[1] = inListedTag;
+    ESP_LOGI("PN532", "TEST2");
 
     if (HAL(writeCommand)(pn532_packetbuffer, 2, send, sendLength)) {
+        ESP_LOGI("PN532", "TEST3");
         return false;
     }
+    ESP_LOGI("PN532", "TEST4");
 
     int16_t status = HAL(readResponse)(response, *responseLength, 1000);
-    // Serial.printf("\nResponse Status: %d\n", status);
+    ESP_LOGI("PN532", "TEST5");
+    ESP_LOG_BUFFER_HEX("PN532", response, *responseLength);
+    ESP_LOGI("PN532", "TEST6");
+    DMSG("Response Status: %d", status);
+    ESP_LOGI("PN532", "TEST7");
     if (status < 0)
     {
+        ESP_LOGE("PN532", "STATUS NFC: %d", status);
         return false;
     }
 
+    // ESP_LOGI("PN532", "TEST8");
     if ((response[0] & 0x3f) != 0) {
         DMSG("Status code indicates an error\n");
+        ESP_LOGE("PN532", "Status code indicates an error\n");
         return false;
     }
+    // ESP_LOGI("PN532", "TEST9");
 
     uint8_t length = status;
     length -= 1;
@@ -964,12 +979,23 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
         length = *responseLength; // silent truncation...
     }
 
-    for (uint8_t i = 0; i < length; i++) {
-        response[i] = response[i + 1];
+    if (response[0] == 0x0) {
+        for (uint8_t i = 0; i < length; i++) {
+            response[i] = response[i + 1];
+        } 
     }
     *responseLength = length;
 
     return true;
+}
+
+bool PN532::ecpBroadcast(uint8_t* ecpData, size_t len) {
+  pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
+
+  if (HAL(writeCommand)(pn532_packetbuffer, 1, ecpData, len)) {
+    return false;
+  }
+  return true;
 }
 
 /**************************************************************************/
@@ -998,21 +1024,22 @@ bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *respon
 
   // check status code
   if (response[0] != 0x0) {
-      DMSG("Status code indicates an error : 0x");
-      DMSG("%02x", pn532_packetbuffer[0]);
-      DMSG("\n");
+      DMSG("Status code indicates an error : 0x%02x", pn532_packetbuffer[0]);
+      DMSG("Respons Status: %02x", status);
       return false;
   }
 
   uint8_t length = status;
-  length -= 1;
+  if(response[0] == 0x0)
+    length -= 1;
 
   if (length > *responseLength) {
       length = *responseLength; // silent truncation...
   }
-
-  for (uint8_t i = 0; i < length; i++) {
-    response[i] = response[i + 1];
+  if (response[0] == 0x0) {
+    for (uint8_t i = 0; i < length; i++) {
+        response[i] = response[i + 1];
+    } 
   }
   *responseLength = length;
 

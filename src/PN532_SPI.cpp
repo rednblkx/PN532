@@ -46,9 +46,28 @@ PN532_SPI::PN532_SPI()
         .sclk_io_num = _clk,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-        .max_transfer_sz = 255
+        .max_transfer_sz = 4092,
     };
     spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+}
+
+void PN532_SPI::post_cb(spi_transaction_t *t) {
+    PN532_SPI* nfc = (PN532_SPI*)t->user;
+    if (t->cmd == STATUS_READ) {
+        uint8_t* buf = (uint8_t*)t->rx_data;
+        // ESP_LOG_BUFFER_HEX("POST_CB", buf, t->rxlength / 8);
+        // ESP_LOGI("POST_CB", "READY? %d", buf[0] & 1);
+        if (buf[0] & 1) {
+            nfc->is_ready = true;
+        }
+    }
+    if (t->cmd == DATA_READ && t->rxlength == 6 * 8) {
+        const uint8_t PN532_ACK[] = { 0, 0, 0xFF, 0, 0xFF, 0 };
+        ESP_LOG_BUFFER_HEX("POST_CB", t->rx_buffer, t->rxlength / 8);
+        if (!memcmp(t->rx_buffer, PN532_ACK, sizeof(PN532_ACK))) {
+            nfc->ack = true;
+        }
+    }
 }
 
 void PN532_SPI::begin()
@@ -60,7 +79,8 @@ void PN532_SPI::begin()
         .clock_speed_hz = 2 * 1000 * 1000,     //Clock out at 2 MHz
         .spics_io_num = -1,
         .flags = SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_BIT_LSBFIRST,
-        .queue_size = 1,
+        .queue_size = 8,
+        .post_cb = post_cb
     };
     spi_bus_add_device(SPI2_HOST, &devcfg, &spi);
 }
@@ -68,7 +88,7 @@ void PN532_SPI::begin()
 void PN532_SPI::wakeup()
 {
     gpio_set_level(_ss, 0);
-    vTaskDelay(2 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     gpio_set_level(_ss, 1);
 }
 
@@ -78,40 +98,49 @@ int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
     writeFrame(header, hlen, body, blen);
 
     uint8_t timeout = PN532_ACK_WAIT_TIME;
-    while (!isReady())
+    // ESP_LOGI("PN532", "WC");
+    while (!is_ready)
     {
+        isReady();
         vTaskDelay(1 / portTICK_PERIOD_MS);
         timeout--;
         if (0 == timeout)
         {
             DMSG("Time out when waiting for ACK\n");
+            is_ready = false;
             return -2;
         }
     }
-    if (readAckFrame())
+    is_ready = false;
+    readAckFrame();
+    if (!ack)
     {
         DMSG("Invalid ACK\n");
         return PN532_INVALID_ACK;
     }
+    ack = false;
     return 0;
 }
 
 int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
 {
     uint16_t time = 0;
-    while (!isReady())
+    // ESP_LOGI("PN532", "RR");
+    while (!is_ready)
     {
+        isReady();
         vTaskDelay(1 / portTICK_PERIOD_MS);
         time++;
         if (time > timeout)
         {
             DMSG("readResponse: Time out when waiting for ACK\n");
+            is_ready = false;
             return PN532_TIMEOUT;
         }
     }
-
+    is_ready = false;
     gpio_set_level(_ss, 0);
-    vTaskDelay(1 / portTICK_PERIOD_MS);
+    // vTaskDelay(1 / portTICK_PERIOD_MS);
 
     int16_t result;
     DMSG("read:");
@@ -129,7 +158,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
             0xFF != header[2]    // STARTCODE2
         )
         {
-            DMSG("PN532::INVALID HEADER");
+            ESP_LOGE("PN532", "PN532::INVALID HEADER");
             result = PN532_INVALID_FRAME;
             heap_caps_free(header);
             break;
@@ -147,7 +176,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
             DMSG("%02x", (uint8_t)(msByte + lsByte + lcs));
             if (0 != (uint8_t)(msByte + lsByte + lcs))
             {
-                DMSG("PN532::FAILED EXTENDED CHECKSUM LENGTH");
+                ESP_LOGE("PN532", "PN532::FAILED EXTENDED CHECKSUM LENGTH");
                 result = PN532_INVALID_FRAME;
                 heap_caps_free(header);
                 break;
@@ -156,7 +185,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         }
         else if (0 != (uint8_t)(header[3] + header[4]))
         { // checksum of length
-            DMSG("PN532::FAILED CHECKSUM LENGTH");
+            ESP_LOGE("PN532", "PN532::FAILED CHECKSUM LENGTH");
             result = PN532_INVALID_FRAME;
             heap_caps_free(header);
             break;
@@ -166,7 +195,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         if (PN532_PN532TOHOST != body[0] || (command + 1) != body[1])
         {
             result = PN532_INVALID_FRAME;
-            DMSG("PN532::COMMAND NOT VALID");
+            ESP_LOGE("PN532", "PN532::COMMAND NOT VALID");
             heap_caps_free(header);
             heap_caps_free(body);
             break;
@@ -180,7 +209,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         {
             // uint8_t *dataBuf = (uint8_t *)heap_caps_malloc(header[3] * sizeof(uint8_t), MALLOC_CAP_DMA);
             // read(dataBuf, header[3]);
-            DMSG("\nNot enough space\n");
+            ESP_LOGE("PN532", "Not enough space");
             result = PN532_NO_SPACE; // not enough space
             // heap_caps_free(dataBuf);
             heap_caps_free(header);
@@ -194,7 +223,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         {
             sum += buf[i];
             // DMSG("buf: %02x", buf[i]);
-            DMSG("body: %02x", body[i]);
+            DMSG("body: %02x", body[i + 2]);
         }
         uint8_t checksum;
         read(&checksum);
@@ -203,7 +232,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         DMSG("CHECKSUM VERIFY: %02x", sum + checksum);
         if (0 != (uint8_t)(sum + checksum))
         {
-            DMSG("checksum is not ok\n");
+            ESP_LOGE("PN532", "checksum is not ok\n");
             result = PN532_INVALID_FRAME;
             heap_caps_free(header);
             heap_caps_free(body);
@@ -213,7 +242,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
         read(&POSTAMBLE); // POSTAMBLE
         DMSG("POSTAMBLE: %02X", POSTAMBLE);
 
-        result = len;
+        result = len - 2;
         heap_caps_free(header);
         heap_caps_free(body);
     } while (0);
@@ -222,14 +251,28 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
     return result;
 }
 
-bool PN532_SPI::isReady()
+IRAM_ATTR bool PN532_SPI::isReady()
 {
     gpio_set_level(_ss, 0);
-    uint8_t status;
-    read(&status, 1, true, true);
-    DMSG_STR("PN532 - isReady", "%02x", status);
+    spi_transaction_ext_t t;
+    t.base.cmd = STATUS_READ;
+    t.command_bits = 8;
+    t.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_MODE_OCT | SPI_TRANS_USE_RXDATA;
+    t.base.user = this;
+    t.base.tx_buffer = NULL;
+    t.base.length = 0;
+    t.base.rxlength = 8;
+    esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&t);
+    if (err != ESP_OK) {
+        ESP_LOGE("PN532", "%s", esp_err_to_name(err));
+        return false;
+    }
+    // uint8_t status;
+    // read(&status, 1, true, true);
+    // ESP_LOGI("PN532", "Is Ready? %02x", status);
+    // DMSG_STR("PN532 - isReady", "%02x", status);
     gpio_set_level(_ss, 1);
-    return status & 1;
+    return true;
 }
 
 void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* body, uint8_t blen) {
@@ -264,27 +307,41 @@ void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* b
     write(data, sizeof(data), true);
 
     gpio_set_level(_ss, 1);
-
-    DMSG("\n");
 }
 
-int8_t PN532_SPI::readAckFrame()
+IRAM_ATTR void PN532_SPI::readAckFrame()
 {
-    const uint8_t PN532_ACK[] = {0, 0, 0xFF, 0, 0xFF, 0};
+    // ESP_LOGI("PN532", "ACK");
+    const uint8_t PN532_ACK[] = { 0, 0, 0xFF, 0, 0xFF, 0 };
 
-    uint8_t ackBuf[sizeof(PN532_ACK)] = { };
+    // uint8_t ackBuf[sizeof(PN532_ACK)] = { };
 
     gpio_set_level(_ss, 0);
-    vTaskDelay(1 / portTICK_PERIOD_MS);
 
-    read(ackBuf, 6, false, true);
-
-    for (uint8_t i = 0; i < sizeof(PN532_ACK); i++)
-    {
-        DMSG("%02x", ackBuf[i]);
+    spi_transaction_ext_t t;
+    t.base.cmd = DATA_READ;
+    t.command_bits = 8;
+    t.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_MODE_OCT;
+    t.base.user = this;
+    t.base.tx_buffer = NULL;
+    t.base.length = 0;
+    t.base.rx_buffer = ackBuf;
+    t.base.rxlength = sizeof(ackBuf) * 8;
+    esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&t);
+    if (err != ESP_OK) {
+        ESP_LOGE("PN532", "%s", esp_err_to_name(err));
+        // return true;
     }
+    // vTaskDelay(1 / portTICK_PERIOD_MS);
+
+    // read(ackBuf, 6, false, true);
+
+    // for (uint8_t i = 0; i < sizeof(PN532_ACK); i++)
+    // {
+    //     DMSG("%02x", ackBuf[i]);
+    // }
 
     gpio_set_level(_ss, 1);
 
-    return memcmp(ackBuf, PN532_ACK, sizeof(PN532_ACK));
+    // return memcmp(ackBuf, PN532_ACK, sizeof(PN532_ACK));
 }
