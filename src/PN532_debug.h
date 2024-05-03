@@ -1,7 +1,7 @@
 #ifndef __DEBUG_H__
 #define __DEBUG_H__
 
-#define DEBUG
+// #define DEBUG
 #include <esp_log.h>
 
 // #ifdef ARDUINO_SAMD_VARIANT_COMPLIANCE

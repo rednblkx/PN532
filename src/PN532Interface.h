@@ -13,7 +13,7 @@
 #define PN532_HOSTTOPN532             (0xD4)
 #define PN532_PN532TOHOST             (0xD5)
 
-#define PN532_ACK_WAIT_TIME           (10)  // ms, timeout of waiting for ACK
+#define PN532_ACK_WAIT_TIME           (100)  // ms, timeout of waiting for ACK
 
 #define PN532_INVALID_ACK             (-1)
 #define PN532_TIMEOUT                 (-2)

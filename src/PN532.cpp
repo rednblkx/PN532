@@ -939,38 +939,28 @@ uint8_t PN532::mifareultralight_WritePage (uint8_t page, uint8_t *buffer)
 /**************************************************************************/
 bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
 {
-    // PrintHex(send, sendLength);
-    ESP_LOGI("PN532", "TEST1");
 
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
     pn532_packetbuffer[1] = inListedTag;
-    ESP_LOGI("PN532", "TEST2");
 
     if (HAL(writeCommand)(pn532_packetbuffer, 2, send, sendLength)) {
-        ESP_LOGI("PN532", "TEST3");
         return false;
     }
-    ESP_LOGI("PN532", "TEST4");
 
     int16_t status = HAL(readResponse)(response, *responseLength, 1000);
-    ESP_LOGI("PN532", "TEST5");
     ESP_LOG_BUFFER_HEX("PN532", response, *responseLength);
-    ESP_LOGI("PN532", "TEST6");
     DMSG("Response Status: %d", status);
-    ESP_LOGI("PN532", "TEST7");
     if (status < 0)
     {
         ESP_LOGE("PN532", "STATUS NFC: %d", status);
         return false;
     }
 
-    // ESP_LOGI("PN532", "TEST8");
     if ((response[0] & 0x3f) != 0) {
         DMSG("Status code indicates an error\n");
         ESP_LOGE("PN532", "Status code indicates an error\n");
         return false;
     }
-    // ESP_LOGI("PN532", "TEST9");
 
     uint8_t length = status;
     length -= 1;
