@@ -12,6 +12,7 @@
 #define __EMULATETAG_H__
 
 #include "PN532.h"
+#include "PN532_debug.h"
 
 #define NDEF_MAX_LENGTH 128 // altough ndef can handle up to 0xfffe in size, arduino cannot.
 typedef enum
@@ -23,7 +24,7 @@ typedef enum
   END_OF_FILE_BEFORE_REACHED_LE_BYTES
 } responseCommand;
 
-class EmulateTag
+class EmulateTag : PN532_debug
 {
 
 public:

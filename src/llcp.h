@@ -3,12 +3,13 @@
 #define __LLCP_H__
 
 #include "mac_link.h"
+#include "PN532_debug.h"
 
 #define LLCP_DEFAULT_TIMEOUT  20000
 #define LLCP_DEFAULT_DSAP     0x04
 #define LLCP_DEFAULT_SSAP     0x20
 
-class LLCP {
+class LLCP : PN532_debug {
 public:
 	LLCP(PN532Interface &interface) : link(interface) {
         headerBuf = link.getHeaderBuffer(&headerBufLen);
@@ -60,7 +61,7 @@ public:
     };
 
 private:
-	MACLink link;
+    MACLink link;
     uint8_t mode;
 	uint8_t ssap;
 	uint8_t dsap;

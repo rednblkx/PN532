@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "PN532Interface.h"
+#include "PN532_debug.h"
 
 // PN532 Commands
 #define PN532_COMMAND_DIAGNOSE              (0x00)
@@ -125,7 +126,7 @@
 #define FELICA_WRITE_MAX_BLOCK_NUM          10 // for typical FeliCa card
 #define FELICA_REQ_SERVICE_MAX_NODE_NUM     32
 
-class PN532
+class PN532 : PN532_debug
 {
 public:
     PN532(PN532Interface &interface);
@@ -163,9 +164,9 @@ public:
     bool inListPassiveTarget();
     bool startPassiveTargetIDDetection(uint8_t cardbaudrate);
     bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t timeout = 1000, bool inlist = false);
-    bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout = 1000, bool inlist = false);
-    bool inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength);
-    bool inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout);
+    bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout = 1000, bool inlist = false, bool ignore_log = false);
+    bool inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, bool ignore_log = false);
+    bool inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, uint16_t timeout);
     bool ecpBroadcast(uint8_t *ecpData, size_t len);
 
     // Mifare Classic functions

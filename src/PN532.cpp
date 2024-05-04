@@ -7,7 +7,6 @@
 /**************************************************************************/
 
 #include "PN532.h"
-#include "PN532_debug.h"
 #include <string.h>
 
 #define HAL(func)   (_interface->func)
@@ -518,18 +517,18 @@ bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uid
     @returns 1 if everything executed properly, 0 for an error
 */
 /**************************************************************************/
-bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist)
+bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist, bool ignore_log)
 {
     pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
     pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
     pn532_packetbuffer[2] = cardbaudrate;
 
-    if (HAL(writeCommand)(pn532_packetbuffer, 3)) {
+    if (HAL(writeCommand)(pn532_packetbuffer, 3, 0, 0, ignore_log)) {
         return 0x0;  // command failed
     }
 
     // read data packet
-    if (HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), timeout) < 0) {
+    if (HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), timeout, ignore_log) < 0) {
         return 0x0;
     }
 
@@ -937,17 +936,18 @@ uint8_t PN532::mifareultralight_WritePage (uint8_t page, uint8_t *buffer)
     @param  responseLength  Pointer to the response data length
 */
 /**************************************************************************/
-bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength)
+bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, bool ignore_log)
 {
 
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
     pn532_packetbuffer[1] = inListedTag;
 
-    if (HAL(writeCommand)(pn532_packetbuffer, 2, send, sendLength)) {
+    if (HAL(writeCommand)(pn532_packetbuffer, 2, send, sendLength, ignore_log)) {
         return false;
     }
 
-    int16_t status = HAL(readResponse)(response, *responseLength, 1000);
+    int16_t status = HAL(readResponse)(response, *responseLength, 1000, ignore_log);
+    ESP_LOGI("PN532", "RXDATA Length: %d", status);
     ESP_LOG_BUFFER_HEX("PN532", response, *responseLength);
     DMSG("Response Status: %d", status);
     if (status < 0)
@@ -982,7 +982,7 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
 bool PN532::ecpBroadcast(uint8_t* ecpData, size_t len) {
   pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
 
-  if (HAL(writeCommand)(pn532_packetbuffer, 1, ecpData, len)) {
+  if (HAL(writeCommand)(pn532_packetbuffer, 1, ecpData, len, true)) {
     return false;
   }
   return true;
@@ -999,7 +999,7 @@ bool PN532::ecpBroadcast(uint8_t* ecpData, size_t len) {
     @param  responseLength  Pointer to the response data length
 */
 /**************************************************************************/
-bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint8_t *responseLength, uint16_t timeout)
+bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, uint16_t timeout)
 {
   pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
 

@@ -8,12 +8,14 @@
 #include <driver/spi_common.h>
 #include <driver/gpio.h>
 #include "PN532Interface.h"
+#include "PN532_debug.h"
 #include <esp_log.h>
 #include <string.h>
+#include <cmath>
 
 using namespace std;
 
-class PN532_SPI : public PN532Interface
+class PN532_SPI : public PN532Interface, PN532_debug
 {
 public:
     ~PN532_SPI();
@@ -21,12 +23,12 @@ public:
 
     void begin();
     void wakeup();
-    int8_t writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0);
+    int8_t writeCommand(const uint8_t* header, uint8_t hlen, const uint8_t* body = 0, uint8_t blen = 0, bool ignore_log = false);
 
-    int16_t readResponse(uint8_t buf[], uint8_t len, uint16_t timeout);
+    int16_t readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, bool ignore_log = false);
 
 private:
-    uint8_t *writeBuf;
+    uint8_t* writeBuf;
     gpio_num_t _ss = gpio_num_t(CONFIG_PN532_SS);
     gpio_num_t _clk = gpio_num_t(CONFIG_PN532_SCK);
     gpio_num_t _miso = gpio_num_t(CONFIG_PN532_MISO);
@@ -36,8 +38,8 @@ private:
     static void post_cb(spi_transaction_t *t);
 
     bool isReady();
-    void writeFrame(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0);
-    int32_t readAckFrame();
+    void writeFrame(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0, bool ignore_log = false);
+    int32_t readAckFrame(bool ignore_log);
 
     IRAM_ATTR esp_err_t write(uint8_t *data, size_t len = 1, bool cmd = false)
     {
@@ -72,7 +74,6 @@ private:
         }
         transaction.base.rxlength = len * 8;
         transaction.base.rx_buffer = out_data;
-        transaction.base.user = this;
         esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&transaction);
         if (err != ESP_OK) {
             return err;

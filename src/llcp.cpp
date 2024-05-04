@@ -1,6 +1,5 @@
 
 #include "llcp.h"
-#include "PN532_debug.h"
 
 // LLCP PDU Type Values
 #define PDU_SYMM 0x00

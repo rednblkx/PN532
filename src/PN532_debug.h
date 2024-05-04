@@ -3,22 +3,27 @@
 
 // #define DEBUG
 #include <esp_log.h>
+#include <cstdarg>
 
-// #ifdef ARDUINO_SAMD_VARIANT_COMPLIANCE
-//     #define SERIAL SerialUSB
+// #ifdef DEBUG
+#define DMSG(fmt, ...) if(!ignore_log){ESP_LOGD(TAG, fmt, ##__VA_ARGS__);}
+#define DMSG_STR(tag, fmt, ...)  ESP_LOGD(tag, fmt, ##__VA_ARGS__)
+#define DMSG_HEX(tag, buf, len) ESP_LOG_BUFFER_HEX_LEVEL(tag, buf, len, ESP_LOG_VERBOSE)
 // #else
-//     #define SERIAL Serial
+// #define DMSG(args...)
+// #define DMSG_STR(tag, fmt, ...)
+// #define DMSG_HEX(tag, buf, len)
+// #define DMSG_INT(num)
 // #endif
 
-#ifdef DEBUG
-#define DMSG(fmt, ...) ESP_LOGI("PN532", fmt, ##__VA_ARGS__)
-#define DMSG_STR(tag, fmt, ...)  ESP_LOGI(tag, fmt, ##__VA_ARGS__)
-#define DMSG_HEX(tag, buf, len) ESP_LOG_BUFFER_HEX(tag, buf, len)
-#else
-#define DMSG(args...)
-#define DMSG_STR(tag, fmt, ...)
-#define DMSG_HEX(tag, buf, len)
-#define DMSG_INT(num)
-#endif
+
+struct PN532_debug
+{
+  bool ignore_log = false;
+  const char* TAG = "PN532";
+  void setDebug(esp_log_level_t level) {
+    esp_log_level_set(TAG, level);
+  }
+};
 
 #endif

@@ -39,7 +39,7 @@ public:
     * @return   0       success
     *           not 0   failed
     */
-    virtual int8_t writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0) = 0;
+    virtual int8_t writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0, bool ignore_log = false) = 0;
 
     /**
     * @brief    read the response of a command, strip prefix and suffix
@@ -49,7 +49,7 @@ public:
     * @return   >=0     length of response without prefix and suffix
     *           <0      failed to read response
     */
-    virtual int16_t readResponse(uint8_t buf[], uint8_t len, uint16_t timeout = 1000) = 0;
+    virtual int16_t readResponse(uint8_t buf[], uint16_t len, uint16_t timeout = 1000, bool ignore_log = false) = 0;
 };
 
 #endif

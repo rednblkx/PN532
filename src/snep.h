@@ -4,6 +4,7 @@
 #define __SNEP_H__
 
 #include "llcp.h"
+#include "PN532_debug.h"
 
 #define SNEP_DEFAULT_VERSION	0x10	// Major: 1, Minor: 0
 
@@ -13,7 +14,7 @@
 #define SNEP_RESPONSE_SUCCESS	0x81
 #define SNEP_RESPONSE_REJECT	0xFF
 
-class SNEP {
+class SNEP : PN532_debug {
 public:
 	SNEP(PN532Interface &interface) : llcp(interface) {
 		headerBuf = llcp.getHeaderBuffer(&headerBufLen);
@@ -41,7 +42,7 @@ public:
     int16_t read(uint8_t *buf, uint8_t len, uint16_t timeout = 0);
 
 private:
-	LLCP llcp;
+    LLCP llcp;
 	uint8_t *headerBuf;
 	uint8_t headerBufLen;
 };
