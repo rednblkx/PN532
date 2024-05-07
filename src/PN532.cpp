@@ -7,6 +7,7 @@
 /**************************************************************************/
 
 #include "PN532.h"
+#include <esp_attr.h>
 #include <string.h>
 
 #define HAL(func)   (_interface->func)
@@ -116,19 +117,20 @@ uint32_t PN532::getFirmwareVersion(void)
     uint32_t response;
 
     pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
-    // ESP_LOGI("PN532", "VERSION");
+    // DMSG("VERSION");
     if (HAL(writeCommand)(pn532_packetbuffer, 1)) {
-        ESP_LOGI("PN532", "VERSION error");
+        DMSG("VERSION error");
         return 0;
     }
 
-    // ESP_LOGI("PN532", "VERSION test");
+    // DMSG("VERSION test");
     // read data packet
     int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer));
     if (0 > status) {
-        ESP_LOGI("PN532", "VERSION length");
+        DMSG("VERSION length");
         return 0;
     }
+    ESP_LOG_BUFFER_HEX(TAG, pn532_packetbuffer, 5);
 
     response = pn532_packetbuffer[0];
     response <<= 8;
@@ -449,7 +451,7 @@ bool PN532::startPassiveTargetIDDetection(uint8_t cardbaudrate) {
     @returns 1 if everything executed properly, 0 for an error
 */
 /**************************************************************************/
-bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t timeout, bool inlist)
+IRAM_ATTR bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t timeout, bool inlist)
 {
     pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
     pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
@@ -517,7 +519,7 @@ bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uid
     @returns 1 if everything executed properly, 0 for an error
 */
 /**************************************************************************/
-bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist, bool ignore_log)
+IRAM_ATTR bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist, bool ignore_log)
 {
     pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
     pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
@@ -947,8 +949,8 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     }
 
     int16_t status = HAL(readResponse)(response, *responseLength, 1000, ignore_log);
-    ESP_LOGI("PN532", "RXDATA Length: %d", status);
-    ESP_LOG_BUFFER_HEX("PN532", response, *responseLength);
+    DMSG("RXDATA Length: %d", status);
+    DMSG_HEX(response, *responseLength);
     DMSG("Response Status: %d", status);
     if (status < 0)
     {
@@ -972,14 +974,14 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     if (response[0] == 0x0) {
         for (uint8_t i = 0; i < length; i++) {
             response[i] = response[i + 1];
-        } 
+        }
     }
     *responseLength = length;
 
     return true;
 }
 
-bool PN532::ecpBroadcast(uint8_t* ecpData, size_t len) {
+IRAM_ATTR bool PN532::ecpBroadcast(uint8_t* ecpData, size_t len) {
   pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
 
   if (HAL(writeCommand)(pn532_packetbuffer, 1, ecpData, len, true)) {

@@ -74,11 +74,14 @@ void PN532_SPI::begin()
 void PN532_SPI::wakeup()
 {
     gpio_set_level(_ss, 0);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(1 / portTICK_PERIOD_MS);
     gpio_set_level(_ss, 1);
+    uint8_t t = 0x02;
+    writeCommand(&t, 1);
+    writeCommand(&t, 1);
 }
 
-int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen, bool ignore_log)
+IRAM_ATTR int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen, bool ignore_log)
 {
     command = header[0];
     writeFrame(header, hlen, body, blen, ignore_log);
@@ -102,7 +105,7 @@ int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
     return 0;
 }
 
-int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, bool ignore_log)
+IRAM_ATTR int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, bool ignore_log)
 {
     uint16_t time = 0;
     while (!isReady())
@@ -236,7 +239,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, b
     return result;
 }
 
-bool PN532_SPI::isReady()
+IRAM_ATTR bool PN532_SPI::isReady()
 {
     gpio_set_level(_ss, 0);
     spi_transaction_ext_t t;
@@ -255,16 +258,16 @@ bool PN532_SPI::isReady()
     uint8_t status = t.base.rx_data[0];
     DMSG_STR("PN532 - isReady", "%02x", status);
     gpio_set_level(_ss, 1);
-    return status & 1;
+    return status == 1;
 }
 
-void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* body, uint8_t blen, bool ignore_log) {
+IRAM_ATTR void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* body, uint8_t blen, bool ignore_log) {
     gpio_set_level(_ss, 0);
     vTaskDelay(2 / portTICK_PERIOD_MS); // wake up PN532
     uint8_t length = hlen + blen + 1; // length of data field: TFI + DATA
     if (writeBuf)
         heap_caps_free(writeBuf);
-    writeBuf = (uint8_t*)heap_caps_malloc(6 + length + 1, MALLOC_CAP_DMA);
+    writeBuf = (uint8_t*)heap_caps_malloc(6 + length + 1, MALLOC_CAP_DMA | MALLOC_CAP_32BIT);
     writeBuf[0] = PN532_PREAMBLE;
     writeBuf[1] = PN532_STARTCODE1;
     writeBuf[2] = PN532_STARTCODE2;
@@ -294,13 +297,14 @@ void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* b
     uint8_t checksum = ~sum + 1; // checksum of TFI + DATA
     writeBuf[6 + length - 1] = checksum;
     writeBuf[6 + length] = PN532_POSTAMBLE;
-    DMSG_HEX("PN532 - writeFrame", writeBuf, 6 + length + 1);
+    DMSG("WriteFrame");
+    DMSG_HEX(writeBuf, 6 + length + 1);
     write(writeBuf, 6 + length + 1, true);
 
     gpio_set_level(_ss, 1);
 }
 
-int32_t PN532_SPI::readAckFrame(bool ignore_log)
+IRAM_ATTR int32_t PN532_SPI::readAckFrame(bool ignore_log)
 {
     const uint8_t PN532_ACK[] = { 0, 0, 0xFF, 0, 0xFF, 0 };
 

@@ -35,7 +35,6 @@ private:
     gpio_num_t _mosi = gpio_num_t(CONFIG_PN532_MOSI);
     spi_device_handle_t spi;
     uint8_t command;
-    static void post_cb(spi_transaction_t *t);
 
     bool isReady();
     void writeFrame(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0, bool ignore_log = false);
@@ -72,6 +71,8 @@ private:
         else {
             transaction.base.flags = SPI_TRANS_MODE_OCT;
         }
+        transaction.base.tx_buffer = NULL;
+        transaction.base.length = 0;
         transaction.base.rxlength = len * 8;
         transaction.base.rx_buffer = out_data;
         esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&transaction);
