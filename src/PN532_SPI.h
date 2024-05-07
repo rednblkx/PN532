@@ -36,11 +36,11 @@ private:
     spi_device_handle_t spi;
     uint8_t command;
 
-    bool isReady();
+    bool isReady(bool);
     void writeFrame(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0, bool ignore_log = false);
     int32_t readAckFrame(bool ignore_log);
 
-    IRAM_ATTR esp_err_t write(uint8_t *data, size_t len = 1, bool cmd = false)
+    esp_err_t write(uint8_t *data, size_t len = 1, bool cmd = false)
     {
         esp_err_t err;
         spi_transaction_ext_t transaction;
@@ -59,7 +59,7 @@ private:
         return err;
     };
 
-    IRAM_ATTR uint8_t read(uint8_t* out_data, size_t len = 1, bool rdy = false, bool cmd = false)
+    uint8_t read(uint8_t* out_data, size_t len = 1, bool rdy = false, bool cmd = false)
     {
         spi_transaction_ext_t transaction;
         memset(&transaction, 0, sizeof(transaction));
@@ -71,8 +71,8 @@ private:
         else {
             transaction.base.flags = SPI_TRANS_MODE_OCT;
         }
-        transaction.base.tx_buffer = NULL;
-        transaction.base.length = 0;
+        // transaction.base.tx_buffer = NULL;
+        // transaction.base.length = 0;
         transaction.base.rxlength = len * 8;
         transaction.base.rx_buffer = out_data;
         esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&transaction);

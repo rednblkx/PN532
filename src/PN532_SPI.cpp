@@ -66,7 +66,7 @@ void PN532_SPI::begin()
         .clock_speed_hz = 2 * 1000 * 1000,     //Clock out at 2 MHz
         .spics_io_num = -1,
         .flags = SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_BIT_LSBFIRST,
-        .queue_size = 2
+        .queue_size = 8
     };
     spi_bus_add_device(SPI2_HOST, &devcfg, &spi);
 }
@@ -74,22 +74,30 @@ void PN532_SPI::begin()
 void PN532_SPI::wakeup()
 {
     gpio_set_level(_ss, 0);
-    vTaskDelay(1 / portTICK_PERIOD_MS);
+    vTaskDelay(2 / portTICK_PERIOD_MS);
     gpio_set_level(_ss, 1);
-    uint8_t t = 0x02;
-    writeCommand(&t, 1);
-    writeCommand(&t, 1);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    gpio_set_level(_ss, 0);
+    vTaskDelay(1 / portTICK_PERIOD_MS);
+    uint8_t e[] = { 0x04 };
+    uint8_t r[16];
+    writeCommand(e, 2);
+    gpio_set_level(_ss, 1);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    gpio_set_level(_ss, 0);
+    readResponse(r, 16, 1000);
+    gpio_set_level(_ss, 1);
 }
 
-IRAM_ATTR int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen, bool ignore_log)
+int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen, bool ignore_log)
 {
     command = header[0];
     writeFrame(header, hlen, body, blen, ignore_log);
 
     uint8_t timeout = PN532_ACK_WAIT_TIME;
-    while (!isReady())
+    while (!isReady(ignore_log))
     {
-        vTaskDelay(1 / portTICK_PERIOD_MS);
+        vTaskDelay(50 / portTICK_PERIOD_MS);
         timeout--;
         if (0 == timeout)
         {
@@ -105,10 +113,10 @@ IRAM_ATTR int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, co
     return 0;
 }
 
-IRAM_ATTR int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, bool ignore_log)
+int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, bool ignore_log)
 {
     uint16_t time = 0;
-    while (!isReady())
+    while (!isReady(ignore_log))
     {
         vTaskDelay(50 / portTICK_PERIOD_MS);
         time++;
@@ -125,7 +133,6 @@ IRAM_ATTR int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t 
     do
     {
         uint8_t* header = (uint8_t *)heap_caps_malloc(5, MALLOC_CAP_DMA | MALLOC_CAP_32BIT);
-
         read(header, 5, false, true);
         DMSG("PREAMBLE: %02x", header[0]);
         DMSG("STARTCODE: 0x%02x , 0x%02X", header[1], header[2]);
@@ -239,29 +246,33 @@ IRAM_ATTR int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t 
     return result;
 }
 
-IRAM_ATTR bool PN532_SPI::isReady()
+bool PN532_SPI::isReady(bool ignore_log)
 {
     gpio_set_level(_ss, 0);
-    spi_transaction_ext_t t;
-    t.base.cmd = STATUS_READ;
-    t.command_bits = 8;
-    t.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_MODE_OCT | SPI_TRANS_USE_RXDATA;
-    // t.base.user = this;
-    t.base.tx_buffer = NULL;
-    t.base.length = 0;
-    t.base.rxlength = 8;
-    esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&t);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "%s", esp_err_to_name(err));
-        return false;
-    }
-    uint8_t status = t.base.rx_data[0];
-    DMSG_STR("PN532 - isReady", "%02x", status);
+    uint8_t *status = (uint8_t*)heap_caps_malloc(4, MALLOC_CAP_DMA | MALLOC_CAP_32BIT);
+    read(status, 1, true, true);
+    // spi_transaction_ext_t t;
+    // t.base.cmd = STATUS_READ;
+    // t.command_bits = 8;
+    // t.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_MODE_OCT | SPI_TRANS_USE_RXDATA;
+    // // t.base.user = this;
+    // t.base.tx_buffer = NULL;
+    // t.base.length = 0;
+    // t.base.rxlength = 8;
+    // esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&t);
+    // if (err != ESP_OK) {
+    //     ESP_LOGE(TAG, "%s", esp_err_to_name(err));
+    //     return false;
+    // }
+    // uint8_t status = t.base.rx_data[0];
+    DMSG_HEX(status, 1);
     gpio_set_level(_ss, 1);
-    return status == 1;
+    bool s = status[0] == 1;
+    heap_caps_free(status);
+    return s;
 }
 
-IRAM_ATTR void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* body, uint8_t blen, bool ignore_log) {
+void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* body, uint8_t blen, bool ignore_log) {
     gpio_set_level(_ss, 0);
     vTaskDelay(2 / portTICK_PERIOD_MS); // wake up PN532
     uint8_t length = hlen + blen + 1; // length of data field: TFI + DATA
@@ -304,7 +315,7 @@ IRAM_ATTR void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const 
     gpio_set_level(_ss, 1);
 }
 
-IRAM_ATTR int32_t PN532_SPI::readAckFrame(bool ignore_log)
+int32_t PN532_SPI::readAckFrame(bool ignore_log)
 {
     const uint8_t PN532_ACK[] = { 0, 0, 0xFF, 0, 0xFF, 0 };
 
@@ -312,16 +323,7 @@ IRAM_ATTR int32_t PN532_SPI::readAckFrame(bool ignore_log)
 
     uint8_t* ackBuf = (uint8_t*)heap_caps_malloc(sizeof(PN532_ACK), MALLOC_CAP_DMA | MALLOC_CAP_32BIT);
 
-    spi_transaction_ext_t t;
-    t.base.cmd = DATA_READ;
-    t.command_bits = 8;
-    t.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_MODE_OCT;
-    t.base.rx_buffer = ackBuf;
-    t.base.rxlength = sizeof(PN532_ACK) * 8;
-    esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&t);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "%s", esp_err_to_name(err));
-    }
+    read(ackBuf, 6, false, true);
 
     for (uint8_t i = 0; i < sizeof(PN532_ACK); i++)
     {

@@ -117,13 +117,11 @@ uint32_t PN532::getFirmwareVersion(void)
     uint32_t response;
 
     pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
-    // DMSG("VERSION");
     if (HAL(writeCommand)(pn532_packetbuffer, 1)) {
         DMSG("VERSION error");
         return 0;
     }
 
-    // DMSG("VERSION test");
     // read data packet
     int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer));
     if (0 > status) {
@@ -451,7 +449,7 @@ bool PN532::startPassiveTargetIDDetection(uint8_t cardbaudrate) {
     @returns 1 if everything executed properly, 0 for an error
 */
 /**************************************************************************/
-IRAM_ATTR bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t timeout, bool inlist)
+bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t timeout, bool inlist)
 {
     pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
     pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
@@ -519,7 +517,7 @@ IRAM_ATTR bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, ui
     @returns 1 if everything executed properly, 0 for an error
 */
 /**************************************************************************/
-IRAM_ATTR bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist, bool ignore_log)
+bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist, bool ignore_log)
 {
     pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
     pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
@@ -981,7 +979,7 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     return true;
 }
 
-IRAM_ATTR bool PN532::ecpBroadcast(uint8_t* ecpData, size_t len) {
+bool PN532::ecpBroadcast(uint8_t* ecpData, size_t len) {
   pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
 
   if (HAL(writeCommand)(pn532_packetbuffer, 1, ecpData, len, true)) {
