@@ -18,7 +18,6 @@ using namespace std;
 class PN532_SPI : public PN532Interface, PN532_debug
 {
 public:
-    ~PN532_SPI();
     PN532_SPI();
 
     void begin();
@@ -28,7 +27,6 @@ public:
     int16_t readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, bool ignore_log = false);
 
 private:
-    uint8_t* writeBuf;
     gpio_num_t _ss = gpio_num_t(CONFIG_PN532_SS);
     gpio_num_t _clk = gpio_num_t(CONFIG_PN532_SCK);
     gpio_num_t _miso = gpio_num_t(CONFIG_PN532_MISO);
@@ -40,8 +38,9 @@ private:
     void writeFrame(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0, bool ignore_log = false);
     int32_t readAckFrame(bool ignore_log);
 
-    esp_err_t write(uint8_t *data, size_t len = 1, bool cmd = false)
+    IRAM_ATTR esp_err_t write(uint8_t *data, size_t len = 1, bool cmd = false)
     {
+        spi_device_acquire_bus(spi, portMAX_DELAY);
         esp_err_t err;
         spi_transaction_ext_t transaction;
         memset(&transaction, 0, sizeof(transaction));
@@ -55,12 +54,14 @@ private:
         }
         transaction.base.length = len * 8;
         transaction.base.tx_buffer = data;
-        err = spi_device_polling_transmit(spi, (spi_transaction_t*)&transaction);
+        err = spi_device_transmit(spi, (spi_transaction_t*)&transaction);
+        spi_device_release_bus(spi);
         return err;
     };
 
-    uint8_t read(uint8_t* out_data, size_t len = 1, bool rdy = false, bool cmd = false)
+    IRAM_ATTR uint8_t read(uint8_t* out_data, size_t len = 1, bool rdy = false, bool cmd = false)
     {
+        spi_device_acquire_bus(spi, portMAX_DELAY);
         spi_transaction_ext_t transaction;
         memset(&transaction, 0, sizeof(transaction));
         if (cmd) {
@@ -71,11 +72,10 @@ private:
         else {
             transaction.base.flags = SPI_TRANS_MODE_OCT;
         }
-        // transaction.base.tx_buffer = NULL;
-        // transaction.base.length = 0;
         transaction.base.rxlength = len * 8;
         transaction.base.rx_buffer = out_data;
-        esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&transaction);
+        esp_err_t err = spi_device_transmit(spi, (spi_transaction_t*)&transaction);
+        spi_device_release_bus(spi);
         if (err != ESP_OK) {
             return err;
         }

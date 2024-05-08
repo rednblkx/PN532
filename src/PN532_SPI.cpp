@@ -9,17 +9,12 @@
 
 using namespace std;
 
-PN532_SPI::~PN532_SPI() {
-    if(writeBuf)
-        heap_caps_free(writeBuf);
-}
-
 PN532_SPI::PN532_SPI()
 {
     TAG = "PN532_SPI";
     gpio_config_t ss_conf = {};
     ss_conf.pin_bit_mask = (1ULL << CONFIG_PN532_SS);
-    ss_conf.mode = GPIO_MODE_INPUT_OUTPUT;
+    ss_conf.mode = GPIO_MODE_OUTPUT;
     ss_conf.intr_type = GPIO_INTR_DISABLE;
     ss_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     ss_conf.pull_up_en = GPIO_PULLUP_DISABLE;
@@ -31,7 +26,7 @@ PN532_SPI::PN532_SPI()
     sck_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config_t miso_conf = {};
     miso_conf.pin_bit_mask = (1ULL << CONFIG_PN532_MISO);
-    miso_conf.mode = GPIO_MODE_INPUT;
+    miso_conf.mode = GPIO_MODE_INPUT_OUTPUT;
     miso_conf.intr_type = GPIO_INTR_DISABLE;
     miso_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     miso_conf.pull_up_en = GPIO_PULLUP_DISABLE;
@@ -75,18 +70,60 @@ void PN532_SPI::wakeup()
 {
     gpio_set_level(_ss, 0);
     vTaskDelay(2 / portTICK_PERIOD_MS);
+    uint8_t long_preamble[16];
+    uint8_t cmd = DATA_WRITE;
+    std::fill(long_preamble, long_preamble + 16, 0x00);
+    write(&cmd);
+    for (size_t i = 0; i < 16; i++)
+    {
+        write(&long_preamble[i]);
+    }
+    uint8_t hdr[] = { 0x00, 0x00 };
+    uint8_t length = 3;
+    std::vector<uint8_t> writeBuf;
+    writeBuf.push_back(PN532_PREAMBLE);
+    writeBuf.push_back(PN532_STARTCODE1);
+    writeBuf.push_back(PN532_STARTCODE2);
+    writeBuf.push_back(length);
+    writeBuf.push_back(~length + 1);
+    writeBuf.push_back(PN532_HOSTTOPN532);
+    uint8_t sum = PN532_HOSTTOPN532;
+    for (uint8_t i = 0; i < 2; i++)
+    {
+        writeBuf.push_back(hdr[i]);
+        sum += hdr[i];
+
+        DMSG("%02x", hdr[i]);
+    }
+    uint8_t checksum = ~sum + 1;
+    writeBuf.push_back(checksum);
+    writeBuf.push_back(PN532_POSTAMBLE);
+    DMSG("WriteFrame");
+    DMSG_HEX(writeBuf.data(), writeBuf.size());
+    for (auto &v: writeBuf)
+    {
+        write(&v);
+    }
+    uint8_t r[32];
     gpio_set_level(_ss, 1);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-    gpio_set_level(_ss, 0);
-    vTaskDelay(1 / portTICK_PERIOD_MS);
-    uint8_t e[] = { 0x04 };
-    uint8_t r[16];
-    writeCommand(e, 2);
-    gpio_set_level(_ss, 1);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-    gpio_set_level(_ss, 0);
-    readResponse(r, 16, 1000);
-    gpio_set_level(_ss, 1);
+    uint8_t timeout = PN532_ACK_WAIT_TIME;
+    while (!isReady(ignore_log))
+    {
+        vTaskDelay(2 / portTICK_PERIOD_MS);
+        timeout--;
+        if (0 == timeout)
+        {
+            DMSG("Time out when waiting for ACK");
+            return;
+        }
+    }
+    if (readAckFrame(ignore_log))
+    {
+        DMSG("Invalid ACK");
+        return;
+    }
+    readResponse(r, 32, 1000);
+    
 }
 
 int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen, bool ignore_log)
@@ -97,7 +134,7 @@ int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
     uint8_t timeout = PN532_ACK_WAIT_TIME;
     while (!isReady(ignore_log))
     {
-        vTaskDelay(50 / portTICK_PERIOD_MS);
+        vTaskDelay(2 / portTICK_PERIOD_MS);
         timeout--;
         if (0 == timeout)
         {
@@ -118,7 +155,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, b
     uint16_t time = 0;
     while (!isReady(ignore_log))
     {
-        vTaskDelay(50 / portTICK_PERIOD_MS);
+        vTaskDelay(25 / portTICK_PERIOD_MS);
         time++;
         if (time > timeout)
         {
@@ -211,12 +248,11 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, b
         }
 
         uint8_t sum = PN532_PN532TOHOST + cmd;
-        // memcpy(buf, body, rxLen);
         for (uint16_t i = 0; i < rxLen; i++)
         {
             sum += body[i];
             buf[i] = body[i];
-            // DMSG("body: %02x", body[i]);
+            DMSG("body: %02x", body[i]);
         }
         DMSG("DATA COPIED TO BUFFER");
         uint8_t checksum;
@@ -249,26 +285,13 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, b
 bool PN532_SPI::isReady(bool ignore_log)
 {
     gpio_set_level(_ss, 0);
-    uint8_t *status = (uint8_t*)heap_caps_malloc(4, MALLOC_CAP_DMA | MALLOC_CAP_32BIT);
-    read(status, 1, true, true);
-    // spi_transaction_ext_t t;
-    // t.base.cmd = STATUS_READ;
-    // t.command_bits = 8;
-    // t.base.flags = SPI_TRANS_VARIABLE_CMD | SPI_TRANS_MODE_OCT | SPI_TRANS_USE_RXDATA;
-    // // t.base.user = this;
-    // t.base.tx_buffer = NULL;
-    // t.base.length = 0;
-    // t.base.rxlength = 8;
-    // esp_err_t err = spi_device_polling_transmit(spi, (spi_transaction_t*)&t);
-    // if (err != ESP_OK) {
-    //     ESP_LOGE(TAG, "%s", esp_err_to_name(err));
-    //     return false;
-    // }
-    // uint8_t status = t.base.rx_data[0];
-    DMSG_HEX(status, 1);
+    uint8_t status;
+    uint8_t cmd = STATUS_READ;
+    write(&cmd);
+    read(&status);
+    DMSG_HEX(&status, 1);
     gpio_set_level(_ss, 1);
-    bool s = status[0] == 1;
-    heap_caps_free(status);
+    bool s = status == 1;
     return s;
 }
 
@@ -276,15 +299,14 @@ void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* b
     gpio_set_level(_ss, 0);
     vTaskDelay(2 / portTICK_PERIOD_MS); // wake up PN532
     uint8_t length = hlen + blen + 1; // length of data field: TFI + DATA
-    if (writeBuf)
-        heap_caps_free(writeBuf);
-    writeBuf = (uint8_t*)heap_caps_malloc(6 + length + 1, MALLOC_CAP_DMA | MALLOC_CAP_32BIT);
-    writeBuf[0] = PN532_PREAMBLE;
-    writeBuf[1] = PN532_STARTCODE1;
-    writeBuf[2] = PN532_STARTCODE2;
-    writeBuf[3] = length;
-    writeBuf[4] = (uint8_t)(~length + 1);
-    writeBuf[5] = PN532_HOSTTOPN532;
+    uint8_t cmd = DATA_WRITE;
+    std::vector<uint8_t> writeBuf;
+    writeBuf.push_back(PN532_PREAMBLE);
+    writeBuf.push_back(PN532_STARTCODE1);
+    writeBuf.push_back(PN532_STARTCODE2);
+    writeBuf.push_back(length);
+    writeBuf.push_back(~length + 1);
+    writeBuf.push_back(PN532_HOSTTOPN532);
 
     uint8_t sum = PN532_HOSTTOPN532; // sum of TFI + DATA
 
@@ -292,25 +314,31 @@ void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* b
 
     for (uint8_t i = 0; i < hlen; i++)
     {
-        writeBuf[6 + i] = header[i];
+        // writeBuf[6 + i] = header[i];
+        writeBuf.push_back(header[i]);
         sum += header[i];
 
         DMSG("%02x", header[i]);
     }
     for (uint8_t i = 0; i < blen; i++)
     {
-        writeBuf[6 + hlen + i] = body[i];
+        // writeBuf[6 + hlen + i] = body[i];
+        writeBuf.push_back(body[i]);
         sum += body[i];
 
         DMSG("%02x", body[i]);
     }
 
     uint8_t checksum = ~sum + 1; // checksum of TFI + DATA
-    writeBuf[6 + length - 1] = checksum;
-    writeBuf[6 + length] = PN532_POSTAMBLE;
+    writeBuf.push_back(checksum);
+    writeBuf.push_back(PN532_POSTAMBLE);
     DMSG("WriteFrame");
-    DMSG_HEX(writeBuf, 6 + length + 1);
-    write(writeBuf, 6 + length + 1, true);
+    DMSG_HEX(writeBuf.data(), writeBuf.size());
+    write(&cmd);
+    for (auto &v: writeBuf)
+    {
+        write(&v);
+    }
 
     gpio_set_level(_ss, 1);
 }
