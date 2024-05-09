@@ -1,0 +1,23 @@
+{
+  "name": "PN532",
+  "version": "1.0.0",
+  "description": "ESP-IDF library for SPI access to the PN532 RFID/Near Field Communication chip",
+  "keywords": "nfc, pn532, communication",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/rednblkx/PN532.git"
+  },
+  "authors":
+  [
+  ],
+  "license": "BSD",
+  "homepage": "",
+  "build": {
+    "includeDir": "src",
+    "srcDir": "src",
+    "srcFilter": "+<src/*>, -<src/examples>"
+  },
+  "frameworks": ["espidf"],
+  "platforms": ["espressif32"]
+}
