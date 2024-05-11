@@ -2,15 +2,24 @@
 #include "PN532_HSU.h"
 #include "PN532_debug.h"
 
-PN532_HSU::PN532_HSU(HardwareSerial &serial)
+PN532_HSU::PN532_HSU(HardwareSerial &serial, uint8_t tx, uint8_t rx)
 {
     _serial = &serial;
+    _tx_pin = tx;
+    _rx_pin = rx;
     command = 0;
 }
 
 void PN532_HSU::begin()
 {
-    _serial->begin(115200);
+    if (_tx_pin && _rx_pin)
+    {
+        _serial->begin(115200, SERIAL_8N1, _tx_pin, _rx_pin);
+    }
+    else
+    {
+        _serial->begin(115200);
+    }
 }
 
 void PN532_HSU::wakeup()
@@ -96,27 +105,48 @@ int16_t PN532_HSU::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
     {
         return PN532_TIMEOUT;
     }
+
+    DMSG_HEX(tmp[0]); // PREAMBLE
+    DMSG_HEX(tmp[1]); // STARTCODE1
+    DMSG_HEX(tmp[2]); // STARTCODE2
+    DMSG_STR("");
+
     if (0 != tmp[0] || 0 != tmp[1] || 0xFF != tmp[2])
     {
-        DMSG("Preamble error");
+        DMSG("PN532::INVALID HEADER");
         return PN532_INVALID_FRAME;
     }
 
     /** receive length and check */
     uint8_t length[2];
+    uint8_t dlength[3];
     if (receive(length, 2, timeout) <= 0)
     {
         return PN532_TIMEOUT;
     }
-    if (0 != (uint8_t)(length[0] + length[1]))
+    DMSG_HEX(length[0]);
+    DMSG_STR("");
+    DMSG_HEX(length[1]);
+    if (length[0] == 0xFF && length[1] == 0xFF)
     {
-        DMSG("Length error");
+        DMSG_STR("SOMETHING STRANGE");
+        if (receive(dlength, 3, timeout) <= 0)
+        {
+            return PN532_TIMEOUT;
+        }
+        DMSG_HEX(dlength[1]);
+        DMSG_HEX(dlength[2]);
+        DMSG("che4cksum");
+        DMSG_HEX((uint8_t)(dlength[1] + dlength[2]));
+        if (0xFF != (uint8_t)(dlength[1] + dlength[2]))
+        {
+                DMSG("PN532::FAILED CHECKSUM LENGTH");
+                return PN532_INVALID_FRAME;
+        }
+    } else if (0 != (uint8_t)(length[0] + length[1]))
+    {
+        DMSG("PN532::FAILED CHECKSUM LENGTH");
         return PN532_INVALID_FRAME;
-    }
-    length[0] -= 2;
-    if (length[0] > len)
-    {
-        return PN532_NO_SPACE;
     }
 
     /** receive command byte */
@@ -125,10 +155,31 @@ int16_t PN532_HSU::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
     {
         return PN532_TIMEOUT;
     }
+    DMSG_HEX(tmp[0]); // TO_HOST
+    DMSG_HEX(tmp[1]); // CMD_TO_HOST
     if (PN532_PN532TOHOST != tmp[0] || cmd != tmp[1])
     {
-        DMSG("Command error");
+        DMSG_STR("PN532::COMMAND NOT VALID");
         return PN532_INVALID_FRAME;
+    }
+
+    length[0] -= (length[1] == 0xFF ? 1 : 2);
+    if (length[0] > len)
+    {
+        for (uint8_t i = 0; i < length[0]; i++)
+        {
+            if (receive(tmp, 1, timeout) <= 0)
+            {
+                return PN532_TIMEOUT;
+            }
+            DMSG_HEX(tmp[0]);
+        }
+        DMSG("\nNot enough space\n");
+        if (receive(tmp, 2, timeout) <= 0)
+        {
+                return PN532_TIMEOUT;
+        }
+        return PN532_NO_SPACE;
     }
 
     if (receive(buf, length[0], timeout) != length[0])
@@ -139,16 +190,19 @@ int16_t PN532_HSU::readResponse(uint8_t buf[], uint8_t len, uint16_t timeout)
     for (uint8_t i = 0; i < length[0]; i++)
     {
         sum += buf[i];
+        DMSG_HEX(buf[i]);
     }
+    DMSG('\n');
 
     /** checksum and postamble */
     if (receive(tmp, 2, timeout) <= 0)
     {
         return PN532_TIMEOUT;
     }
+    DMSG_HEX(tmp[0]); // checksum
     if (0 != (uint8_t)(sum + tmp[0]) || 0 != tmp[1])
     {
-        DMSG("Checksum error");
+        DMSG("checksum is not ok\n");
         return PN532_INVALID_FRAME;
     }
 
@@ -188,6 +242,11 @@ int8_t PN532_HSU::receive(uint8_t *buf, int len, uint16_t timeout)
     int read_bytes = 0;
     int ret;
     unsigned long start_millis;
+
+    // Workaround for timing issues with HomeKey
+    if(!_serial->available()) {
+        delay(3);
+    }
 
     while (read_bytes < len)
     {
