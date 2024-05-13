@@ -990,7 +990,7 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     @param  responseLength  Pointer to the response data length
 */
 /**************************************************************************/
-bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, uint16_t timeout)
+bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, uint16_t timeout, bool ignore_log)
 {
   pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
 
@@ -998,7 +998,7 @@ bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *respon
     return false;
   }
 
-  int16_t status = HAL(readResponse)(response, *responseLength, timeout);
+  int16_t status = HAL(readResponse)(response, *responseLength, timeout, ignore_log);
   if (status < 0) {
     return false;
   }
