@@ -979,16 +979,6 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
     return true;
 }
 
-bool PN532::ecpBroadcast(uint8_t* ecpData, size_t len) {
-  writeRegister(0x633d, 0);
-  pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
-
-  if (HAL(writeCommand)(pn532_packetbuffer, 1, ecpData, len, true)) {
-    return false;
-  }
-  return true;
-}
-
 /**************************************************************************/
 /*!
     This command is used to support basic data exchanges
