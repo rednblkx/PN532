@@ -134,7 +134,7 @@ int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
     uint8_t timeout = PN532_ACK_WAIT_TIME;
     while (!isReady(ignore_log))
     {
-        vTaskDelay(2 / portTICK_PERIOD_MS);
+        vTaskDelay(1 / portTICK_PERIOD_MS);
         timeout--;
         if (0 == timeout)
         {
@@ -155,7 +155,7 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, b
     uint16_t time = 0;
     while (!isReady(ignore_log))
     {
-        vTaskDelay(25 / portTICK_PERIOD_MS);
+        vTaskDelay(1 / portTICK_PERIOD_MS);
         time++;
         if (time > timeout)
         {
