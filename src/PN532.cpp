@@ -181,7 +181,7 @@ uint32_t PN532::readRegister(uint16_t reg)
     @returns  0 for failure, 1 for success.
 */
 /**************************************************************************/
-uint32_t PN532::writeRegister(uint16_t reg, uint8_t val)
+uint32_t PN532::writeRegister(uint16_t reg, uint8_t val, bool ignore_log)
 {
     uint32_t response;
 
@@ -191,12 +191,12 @@ uint32_t PN532::writeRegister(uint16_t reg, uint8_t val)
     pn532_packetbuffer[3] = val;
 
 
-    if (HAL(writeCommand)(pn532_packetbuffer, 4)) {
+    if (HAL(writeCommand)(pn532_packetbuffer, 4, 0, 0, ignore_log)) {
         return 0;
     }
 
     // read data packet
-    int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer));
+    int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), 1000, ignore_log);
     if (0 > status) {
         return 0;
     }
@@ -994,7 +994,7 @@ bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *respon
 {
   pn532_packetbuffer[0] = PN532_COMMAND_INCOMMUNICATETHRU;
 
-  if (HAL(writeCommand)(pn532_packetbuffer, 1, send, sendLength)) {
+  if (HAL(writeCommand)(pn532_packetbuffer, 1, send, sendLength, ignore_log)) {
     return false;
   }
 
