@@ -39,7 +39,7 @@ private:
     void writeFrame(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0, bool ignore_log = false);
     int32_t readAckFrame(bool ignore_log);
 
-    IRAM_ATTR esp_err_t write(uint8_t *data, size_t len = 1, bool cmd = false)
+    esp_err_t write(uint8_t *data, size_t len = 1, bool cmd = false)
     {
         spi_device_acquire_bus(spi, portMAX_DELAY);
         esp_err_t err;
@@ -60,7 +60,7 @@ private:
         return err;
     };
 
-    IRAM_ATTR uint8_t read(uint8_t* out_data, size_t len = 1, bool rdy = false, bool cmd = false)
+    uint8_t read(uint8_t* out_data, size_t len = 1, bool rdy = false, bool cmd = false)
     {
         spi_device_acquire_bus(spi, portMAX_DELAY);
         spi_transaction_ext_t transaction;
