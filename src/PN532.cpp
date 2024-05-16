@@ -484,7 +484,7 @@ bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uid
     @returns 1 if everything executed properly, 0 for an error
 */
 /**************************************************************************/
-bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist, bool ignore_log)
+bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint8_t *atqa, uint8_t *sak, uint16_t timeout, bool inlist, bool ignore_log)
 {
     pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
     pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
@@ -514,6 +514,8 @@ bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uid
 
     if (pn532_packetbuffer[0] != 1)
         return 0;
+    atqa[0] = pn532_packetbuffer[2];
+    atqa[1] = pn532_packetbuffer[3];
 
     uint16_t sens_res = pn532_packetbuffer[2];
     sens_res <<= 8;
@@ -523,7 +525,6 @@ bool PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uid
     DMSG("SAK: 0x");  DMSG("%02x", pn532_packetbuffer[4]);
     DMSG("\n");
 
-    memcpy(atqa, &sens_res, sizeof(sens_res));
     *sak = pn532_packetbuffer[4];
 
     /* Card appears to be Mifare Classic */

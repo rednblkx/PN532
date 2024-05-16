@@ -164,7 +164,7 @@ public:
     bool inListPassiveTarget();
     bool startPassiveTargetIDDetection(uint8_t cardbaudrate);
     bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t timeout = 1000, bool inlist = false);
-    bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout = 1000, bool inlist = false, bool ignore_log = false);
+    bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint8_t *atqa, uint8_t *sak, uint16_t timeout = 1000, bool inlist = false, bool ignore_log = false);
     bool inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, bool ignore_log = false);
     bool inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, uint16_t timeout, bool ignore_log);
 
