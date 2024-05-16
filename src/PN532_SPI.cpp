@@ -223,7 +223,15 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, b
             read(body + i);
             DMSG("DATA READ: %02x", body[i]);
         }
-        
+        if (rxLen == 1 && tfi == 0x7f && cmd == 0x81) {
+            result = PN532_ERROR_FRAME;
+            ESP_LOGE(TAG, "Received Error Frame - TFI: %02x CMD:%02x", tfi, cmd);
+            uint8_t dummy[2];
+            read(dummy, 2);
+            heap_caps_free(header);
+            heap_caps_free(body);
+            break;
+        }
         if (PN532_PN532TOHOST != tfi || (command + 1) != cmd)
         {
             result = PN532_INVALID_FRAME;
@@ -299,13 +307,7 @@ void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* b
     gpio_set_level(_ss, 0);
     vTaskDelay(2 / portTICK_PERIOD_MS); // wake up PN532
     uint8_t length = hlen + blen + 1; // length of data field: TFI + DATA
-    std::vector<uint8_t> writeBuf;
-    writeBuf.push_back(PN532_PREAMBLE);
-    writeBuf.push_back(PN532_STARTCODE1);
-    writeBuf.push_back(PN532_STARTCODE2);
-    writeBuf.push_back(length);
-    writeBuf.push_back(~length + 1);
-    writeBuf.push_back(PN532_HOSTTOPN532);
+    std::vector<uint8_t> writeBuf = {PN532_PREAMBLE, PN532_STARTCODE1, PN532_STARTCODE2, length, (uint8_t)(~length + 1), PN532_HOSTTOPN532};
 
     uint8_t sum = PN532_HOSTTOPN532; // sum of TFI + DATA
 

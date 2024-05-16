@@ -19,6 +19,7 @@
 #define PN532_TIMEOUT                 (-2)
 #define PN532_INVALID_FRAME           (-3)
 #define PN532_NO_SPACE                (-4)
+#define PN532_ERROR_FRAME             (-5)
 
 #define REVERSE_BITS_ORDER(b)         b = (b & 0xF0) >> 4 | (b & 0x0F) << 4; \
                                       b = (b & 0xCC) >> 2 | (b & 0x33) << 2; \
