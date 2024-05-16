@@ -41,7 +41,6 @@ private:
 
     esp_err_t write(uint8_t *data, size_t len = 1, bool cmd = false)
     {
-        spi_device_acquire_bus(spi, portMAX_DELAY);
         esp_err_t err;
         spi_transaction_ext_t transaction;
         memset(&transaction, 0, sizeof(transaction));
@@ -56,13 +55,11 @@ private:
         transaction.base.length = len * 8;
         transaction.base.tx_buffer = data;
         err = spi_device_transmit(spi, (spi_transaction_t*)&transaction);
-        spi_device_release_bus(spi);
         return err;
     };
 
-    uint8_t read(uint8_t* out_data, size_t len = 1, bool rdy = false, bool cmd = false)
+    esp_err_t read(uint8_t* out_data, size_t len = 1, bool rdy = false, bool cmd = false)
     {
-        spi_device_acquire_bus(spi, portMAX_DELAY);
         spi_transaction_ext_t transaction;
         memset(&transaction, 0, sizeof(transaction));
         if (cmd) {
@@ -76,11 +73,7 @@ private:
         transaction.base.rxlength = len * 8;
         transaction.base.rx_buffer = out_data;
         esp_err_t err = spi_device_transmit(spi, (spi_transaction_t*)&transaction);
-        spi_device_release_bus(spi);
-        if (err != ESP_OK) {
-            return err;
-        }
-        return ESP_OK;
+        return err;
     };
 };
 
