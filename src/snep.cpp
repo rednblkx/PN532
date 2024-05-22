@@ -109,7 +109,7 @@ int16_t SNEP::read(uint8_t *buf, uint8_t len, uint16_t timeout)
 	if (length > (status - 6))
 	{
 		DMSG("The SNEP message is too large: ");
-		DMSG("%hu", length);
+		DMSG("%lu", length);
 		DMSG("%u", status - 6);
 		DMSG("\n");
 		return -4;
