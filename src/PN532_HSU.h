@@ -5,14 +5,14 @@
 #include "PN532Interface.h"
 #include "Arduino.h"
 
-#define PN532_HSU_DEBUG
+#define PN532_HSU_DEBUG 1
 
 #define PN532_HSU_READ_TIMEOUT (1000)
 
 class PN532_HSU : public PN532Interface
 {
 public:
-    PN532_HSU(HardwareSerial &serial);
+    PN532_HSU(HardwareSerial &serial, uint8_t tx = 0, uint8_t rx = 0);
 
     void begin();
     void wakeup();
@@ -21,6 +21,8 @@ public:
 
 private:
     HardwareSerial *_serial;
+    uint8_t _tx_pin;
+    uint8_t _rx_pin;
     uint8_t command;
 
     int8_t readAckFrame();
