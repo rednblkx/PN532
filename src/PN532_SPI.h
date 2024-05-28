@@ -34,8 +34,8 @@ private:
     gpio_num_t _mosi = gpio_num_t(CONFIG_PN532_MOSI);
     spi_device_handle_t spi;
     uint8_t command;
+    QueueHandle_t rdy_queue;
 
-    bool isReady(bool);
     void writeFrame(const uint8_t *header, uint8_t hlen, const uint8_t *body = 0, uint8_t blen = 0, bool ignore_log = false);
     int32_t readAckFrame(bool ignore_log);
 

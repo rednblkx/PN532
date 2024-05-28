@@ -52,8 +52,32 @@ PN532_SPI::PN532_SPI()
     spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
 }
 
+static void IRAM_ATTR rdy_isr(void* arg) {
+    QueueHandle_t q = (QueueHandle_t)arg;
+    bool status = true;
+    xQueueSendFromISR(q, &status, NULL);
+}
+
 void PN532_SPI::begin()
 {
+    gpio_config_t io_conf = {};
+    //interrupt of falling edge
+    io_conf.intr_type = GPIO_INTR_NEGEDGE;
+    //bit mask of the pins, use GPIO17 here
+    io_conf.pin_bit_mask = (1ULL<<17);
+    //set as input mode
+    io_conf.mode = GPIO_MODE_INPUT;
+    //enable pull-up mode
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+
+    gpio_config(&io_conf);
+
+    rdy_queue = xQueueCreate(1, sizeof(bool));
+
+    //install gpio isr service
+    gpio_install_isr_service(0);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add(gpio_num_t(17), rdy_isr, rdy_queue);
     spi_device_interface_config_t devcfg = {
         .command_bits = 0,
         .address_bits = 0,
@@ -107,8 +131,11 @@ void PN532_SPI::wakeup()
     uint8_t r[32];
     gpio_set_level(_ss, 1);
     uint8_t timeout = PN532_ACK_WAIT_TIME;
-    while (!isReady(ignore_log))
+    bool rdy = false;
+    xQueueReceive(rdy_queue, &rdy, 0);
+    while (rdy == false)
     {
+        xQueueReceive(rdy_queue, &rdy, 0);
         vTaskDelay(2 / portTICK_PERIOD_MS);
         timeout--;
         if (0 == timeout)
@@ -123,7 +150,6 @@ void PN532_SPI::wakeup()
         return;
     }
     readResponse(r, 32, 1000);
-    
 }
 
 int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen, bool ignore_log)
@@ -132,8 +158,11 @@ int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
     writeFrame(header, hlen, body, blen, ignore_log);
 
     uint8_t timeout = PN532_ACK_WAIT_TIME;
-    while (!isReady(ignore_log))
+    bool rdy = false;
+    xQueueReceive(rdy_queue, &rdy, 0);
+    while (!rdy)
     {
+        xQueueReceive(rdy_queue, &rdy, 0);
         vTaskDelay(1 / portTICK_PERIOD_MS);
         timeout--;
         if (0 == timeout)
@@ -153,8 +182,11 @@ int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
 int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, bool ignore_log)
 {
     uint16_t time = 0;
-    while (!isReady(ignore_log))
+    bool rdy = false;
+    xQueueReceive(rdy_queue, &rdy, 0);
+    while (!rdy)
     {
+        xQueueReceive(rdy_queue, &rdy, 0);
         vTaskDelay(1 / portTICK_PERIOD_MS);
         time++;
         if (time > timeout)
@@ -280,19 +312,6 @@ int16_t PN532_SPI::readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, b
 
     gpio_set_level(_ss, 1);
     return result;
-}
-
-bool PN532_SPI::isReady(bool ignore_log)
-{
-    gpio_set_level(_ss, 0);
-    uint8_t status;
-    uint8_t cmd = STATUS_READ;
-    write(&cmd);
-    read(&status);
-    DMSG_HEX(&status, 1);
-    gpio_set_level(_ss, 1);
-    bool s = status == 1;
-    return s;
 }
 
 void PN532_SPI::writeFrame(const uint8_t* header, uint8_t hlen, const uint8_t* body, uint8_t blen, bool ignore_log) {
