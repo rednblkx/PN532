@@ -313,15 +313,15 @@ bool PN532::SAMConfig(void)
     @brief  Turn the module into power mode  will wake up on I2C or SPI request 
 */
 /**************************************************************************/
-bool PN532::powerDownMode()
+bool PN532::powerDownMode(uint8_t wakeUpSource, bool generateIrq)
 {
-    pn532_packetbuffer[0] = PN532_COMMAND_POWERDOWN; 
-    pn532_packetbuffer[1] = 0xC0; // I2C or SPI Wakeup
-    pn532_packetbuffer[2] = 0x00; // no IRQ
+    pn532_packetbuffer[0] = PN532_COMMAND_POWERDOWN;
+    pn532_packetbuffer[1] = wakeUpSource;
+    pn532_packetbuffer[2] = generateIrq;
 
     DMSG("POWERDOWN\n");
 
-    if (HAL(writeCommand)(pn532_packetbuffer, 4))
+    if (HAL(writeCommand)(pn532_packetbuffer, 3))
         return false;
 
     return (0 < HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer)));
@@ -428,7 +428,7 @@ bool PN532::startPassiveTargetIDDetection(uint8_t cardbaudrate) {
     pn532_packetbuffer[1] = 1; // max 1 cards at once (we can set this to 2 later)
     pn532_packetbuffer[2] = cardbaudrate;
 
-    if (HAL(writeCommand)(pn532_packetbuffer, 3)) {
+    if (HAL(writeCommand)(pn532_packetbuffer, 3, 0, 0, true)) {
         return 0x0;  // command failed
     }
     return 1;
@@ -936,7 +936,7 @@ uint8_t PN532::mifareultralight_WritePage (uint8_t page, uint8_t *buffer)
     @param  responseLength  Pointer to the response data length
 */
 /**************************************************************************/
-bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, bool ignore_log)
+bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, uint16_t timeout, bool ignore_log)
 {
 
     pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
@@ -1004,7 +1004,7 @@ bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *respon
   }
 
   // check status code
-  if (response[0] != 0x0) {
+  if (response[0] != 0x0 && status <= 1) {
       DMSG("Status code indicates an error : 0x%02x", pn532_packetbuffer[0]);
       DMSG("Respons Status: %02x", status);
       return false;
@@ -1033,7 +1033,7 @@ bool PN532::inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *respon
             peer acting as card/responder.
 */
 /**************************************************************************/
-bool PN532::inListPassiveTarget()
+bool PN532::inListPassiveTarget(bool ignore_log)
 {
     pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
     pn532_packetbuffer[1] = 1;
@@ -1041,7 +1041,33 @@ bool PN532::inListPassiveTarget()
 
     DMSG("inList passive target\n");
 
-    if (HAL(writeCommand)(pn532_packetbuffer, 3)) {
+    if (HAL(writeCommand)(pn532_packetbuffer, 3, 0, 0, ignore_log)) {
+        return false;
+    }
+
+    int16_t status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), 1000, ignore_log);
+    if (status < 0) {
+        return false;
+    }
+
+    if (pn532_packetbuffer[0] != 1) {
+        return false;
+    }
+
+    inListedTag = pn532_packetbuffer[1];
+
+    return true;
+}
+
+bool PN532::inAutoPoll(uint8_t pollNr, uint8_t period, uint8_t type1) {
+    pn532_packetbuffer[0] = PN532_COMMAND_INAUTOPOLL;
+    pn532_packetbuffer[1] = pollNr;
+    pn532_packetbuffer[2] = period;
+    pn532_packetbuffer[3] = type1;
+
+    DMSG("inAutoPoll");
+
+    if (HAL(writeCommand)(pn532_packetbuffer, 4)) {
         return false;
     }
 
@@ -1053,8 +1079,6 @@ bool PN532::inListPassiveTarget()
     if (pn532_packetbuffer[0] != 1) {
         return false;
     }
-
-    inListedTag = pn532_packetbuffer[1];
 
     return true;
 }

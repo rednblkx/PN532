@@ -31,6 +31,7 @@
 #define PN532_COMMAND_INJUMPFORDEP          (0x56)
 #define PN532_COMMAND_INJUMPFORPSL          (0x46)
 #define PN532_COMMAND_INLISTPASSIVETARGET   (0x4A)
+#define PN532_COMMAND_INAUTOPOLL            (0x60)
 #define PN532_COMMAND_INATR                 (0x50)
 #define PN532_COMMAND_INPSL                 (0x4E)
 #define PN532_COMMAND_INDATAEXCHANGE        (0x40)
@@ -143,7 +144,7 @@ public:
     bool setPassiveActivationRetries(uint8_t maxRetries);
     bool setRFField(uint8_t autoRFCA, uint8_t rFOnOff);
     bool setRFConfiguration(uint8_t cfgItem, uint8_t *confData);
-    bool powerDownMode();
+    bool powerDownMode(uint8_t wakeUpSource, bool generateIrq);
 
     /**
     * @brief    Init PN532 as a target
@@ -161,11 +162,12 @@ public:
     int16_t inRelease(const uint8_t relevantTarget = 0);
 
     // ISO14443A functions
-    bool inListPassiveTarget();
+    bool inListPassiveTarget(bool ignore_log = false);
     bool startPassiveTargetIDDetection(uint8_t cardbaudrate);
-    bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t timeout = 1000, bool inlist = false);
+    bool inAutoPoll(uint8_t pollNr, uint8_t period, uint8_t type1);
+    bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t* uid, uint8_t* uidLength, uint16_t timeout = 1000, bool inlist = false);
     bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t *uid, uint8_t *uidLength, uint16_t *atqa, uint8_t *sak, uint16_t timeout = 1000, bool inlist = false, bool ignore_log = false);
-    bool inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, bool ignore_log = false);
+    bool inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, uint16_t timeout = 1000, bool ignore_log = false);
     bool inCommunicateThru(uint8_t *send, uint8_t sendLength, uint8_t *response, uint16_t *responseLength, uint16_t timeout, bool ignore_log);
 
     // Mifare Classic functions
