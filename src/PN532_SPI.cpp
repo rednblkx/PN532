@@ -9,29 +9,29 @@
 
 using namespace std;
 
-PN532_SPI::PN532_SPI()
+PN532_SPI::PN532_SPI(uint8_t ss, uint8_t sck, uint8_t miso, uint8_t mosi) : _ss(gpio_num_t(ss)), _clk(gpio_num_t(sck)), _miso(gpio_num_t(miso)), _mosi(gpio_num_t(mosi))
 {
     TAG = "PN532_SPI";
     gpio_config_t ss_conf = {};
-    ss_conf.pin_bit_mask = (1ULL << CONFIG_PN532_SS);
+    ss_conf.pin_bit_mask = (1ULL << ss);
     ss_conf.mode = GPIO_MODE_OUTPUT;
     ss_conf.intr_type = GPIO_INTR_DISABLE;
     ss_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     ss_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config_t sck_conf = {};
-    sck_conf.pin_bit_mask = (1ULL << CONFIG_PN532_SCK);
+    sck_conf.pin_bit_mask = (1ULL << sck);
     sck_conf.mode = GPIO_MODE_INPUT_OUTPUT;
     sck_conf.intr_type = GPIO_INTR_DISABLE;
     sck_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     sck_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config_t miso_conf = {};
-    miso_conf.pin_bit_mask = (1ULL << CONFIG_PN532_MISO);
+    miso_conf.pin_bit_mask = (1ULL << miso);
     miso_conf.mode = GPIO_MODE_INPUT_OUTPUT;
     miso_conf.intr_type = GPIO_INTR_DISABLE;
     miso_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     miso_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config_t mosi_conf = {};
-    mosi_conf.pin_bit_mask = (1ULL << CONFIG_PN532_MOSI);
+    mosi_conf.pin_bit_mask = (1ULL << mosi);
     mosi_conf.mode = GPIO_MODE_INPUT_OUTPUT;
     mosi_conf.intr_type = GPIO_INTR_DISABLE;
     mosi_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;

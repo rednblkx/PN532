@@ -19,7 +19,7 @@ using namespace std;
 class PN532_SPI : public PN532Interface, PN532_debug
 {
 public:
-    PN532_SPI();
+    PN532_SPI(uint8_t ss = CONFIG_PN532_SS, uint8_t sck = CONFIG_PN532_SCK, uint8_t miso = CONFIG_PN532_MISO, uint8_t mosi = CONFIG_PN532_MOSI);
 
     void begin();
     void wakeup();
@@ -28,10 +28,10 @@ public:
     int16_t readResponse(uint8_t buf[], uint16_t len, uint16_t timeout, bool ignore_log = false);
 
 private:
-    gpio_num_t _ss = gpio_num_t(CONFIG_PN532_SS);
-    gpio_num_t _clk = gpio_num_t(CONFIG_PN532_SCK);
-    gpio_num_t _miso = gpio_num_t(CONFIG_PN532_MISO);
-    gpio_num_t _mosi = gpio_num_t(CONFIG_PN532_MOSI);
+    const gpio_num_t _ss;
+    const gpio_num_t _clk;
+    const gpio_num_t _miso;
+    const gpio_num_t _mosi;
     spi_device_handle_t spi;
     uint8_t command;
 
