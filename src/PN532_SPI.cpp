@@ -20,19 +20,19 @@ PN532_SPI::PN532_SPI(uint8_t ss, uint8_t sck, uint8_t miso, uint8_t mosi) : _ss(
     ss_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config_t sck_conf = {};
     sck_conf.pin_bit_mask = (1ULL << sck);
-    sck_conf.mode = GPIO_MODE_INPUT_OUTPUT;
+    sck_conf.mode = GPIO_MODE_OUTPUT;
     sck_conf.intr_type = GPIO_INTR_DISABLE;
     sck_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     sck_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config_t miso_conf = {};
     miso_conf.pin_bit_mask = (1ULL << miso);
-    miso_conf.mode = GPIO_MODE_INPUT_OUTPUT;
+    miso_conf.mode = GPIO_MODE_INPUT;
     miso_conf.intr_type = GPIO_INTR_DISABLE;
     miso_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     miso_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config_t mosi_conf = {};
     mosi_conf.pin_bit_mask = (1ULL << mosi);
-    mosi_conf.mode = GPIO_MODE_INPUT_OUTPUT;
+    mosi_conf.mode = GPIO_MODE_OUTPUT;
     mosi_conf.intr_type = GPIO_INTR_DISABLE;
     mosi_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     mosi_conf.pull_up_en = GPIO_PULLUP_DISABLE;
@@ -41,13 +41,13 @@ PN532_SPI::PN532_SPI(uint8_t ss, uint8_t sck, uint8_t miso, uint8_t mosi) : _ss(
     gpio_config(&miso_conf);
     gpio_config(&mosi_conf);
     spi_bus_config_t buscfg = {
-        .mosi_io_num = _mosi,
-        .miso_io_num = _miso,
-        .sclk_io_num = _clk,
+        .mosi_io_num = mosi,
+        .miso_io_num = miso,
+        .sclk_io_num = sck,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-        .max_transfer_sz = 1024 * 8,
-        .flags = SPICOMMON_BUSFLAG_MASTER
+        .max_transfer_sz = 0,
+        .flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_GPIO_PINS | SPICOMMON_BUSFLAG_SCLK | SPICOMMON_BUSFLAG_MISO | SPICOMMON_BUSFLAG_MOSI
     };
     spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
 }
@@ -58,7 +58,7 @@ void PN532_SPI::begin()
         .command_bits = 0,
         .address_bits = 0,
         .mode = 0,                              //SPI mode 0
-        .clock_speed_hz = 2 * 1000 * 1000,     //Clock out at 2 MHz
+        .clock_speed_hz = 1 * 1000 * 1000,     //Clock out at 2 MHz
         .spics_io_num = -1,
         .flags = SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_BIT_LSBFIRST,
         .queue_size = 2
