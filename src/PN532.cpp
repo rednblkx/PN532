@@ -914,7 +914,7 @@ bool PN532::inDataExchange(uint8_t *send, uint8_t sendLength, uint8_t *response,
         return false;
     }
 
-    int16_t status = HAL(readResponse)(response, *responseLength, 1000, ignore_log);
+    int16_t status = HAL(readResponse)(response, *responseLength, 10000, ignore_log);
     DMSG("RXDATA Length: %d", status);
     DMSG_HEX(response, *responseLength);
     DMSG("Response Status: %d", status);
