@@ -13,7 +13,7 @@
 
 using namespace std;
 
-PN532_SPI::PN532_SPI(uint8_t ss, uint8_t sck, uint8_t miso, uint8_t mosi) : _ss(gpio_num_t(ss)), _clk(gpio_num_t(sck)), _miso(gpio_num_t(miso)), _mosi(gpio_num_t(mosi))
+PN532_SPI::PN532_SPI(uint8_t ss, uint8_t sck, uint8_t miso, uint8_t mosi, int bus_speed) : _ss(gpio_num_t(ss)), _clk(gpio_num_t(sck)), _miso(gpio_num_t(miso)), _mosi(gpio_num_t(mosi)), bus_speed(bus_speed)
 {
     TAG = "PN532_SPI";
     gpio_config_t ss_conf = {};
@@ -61,8 +61,8 @@ void PN532_SPI::begin()
     spi_device_interface_config_t devcfg = {
         .command_bits = 0,
         .address_bits = 0,
-        .mode = 0,                              //SPI mode 0
-        .clock_speed_hz = 1 * 1000 * 1000,     //Clock out at 1 MHz
+        .mode = 0,
+        .clock_speed_hz = this->bus_speed,
         .spics_io_num = -1,
         .flags = SPI_DEVICE_BIT_LSBFIRST,
         .queue_size = 1,
