@@ -9,7 +9,7 @@
 
 using namespace std;
 
-PN532_SPI::PN532_SPI(uint8_t ss, uint8_t sck, uint8_t miso, uint8_t mosi) : _ss(gpio_num_t(ss)), _clk(gpio_num_t(sck)), _miso(gpio_num_t(miso)), _mosi(gpio_num_t(mosi))
+PN532_SPI::PN532_SPI(uint8_t ss, uint8_t sck, uint8_t miso, uint8_t mosi, int bus_speed) : _ss(gpio_num_t(ss)), _clk(gpio_num_t(sck)), _miso(gpio_num_t(miso)), _mosi(gpio_num_t(mosi)), bus_speed(bus_speed)
 {
     TAG = "PN532_SPI";
     gpio_config_t ss_conf = {};
@@ -57,8 +57,8 @@ void PN532_SPI::begin()
     spi_device_interface_config_t devcfg = {
         .command_bits = 0,
         .address_bits = 0,
-        .mode = 0,                              //SPI mode 0
-        .clock_speed_hz = 1 * 1000 * 1000,     //Clock out at 2 MHz
+        .mode = 0,
+        .clock_speed_hz = this->bus_speed,
         .spics_io_num = -1,
         .flags = SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_BIT_LSBFIRST,
         .queue_size = 2
@@ -70,60 +70,60 @@ void PN532_SPI::wakeup()
 {
     gpio_set_level(_ss, 0);
     vTaskDelay(2 / portTICK_PERIOD_MS);
-    uint8_t long_preamble[16];
-    uint8_t cmd = DATA_WRITE;
-    std::fill(long_preamble, long_preamble + 16, 0x00);
-    write(&cmd);
-    for (size_t i = 0; i < 16; i++)
-    {
-        write(&long_preamble[i]);
-    }
-    uint8_t hdr[] = { 0x00, 0x00 };
-    uint8_t length = 3;
-    std::vector<uint8_t> writeBuf;
-    writeBuf.push_back(PN532_PREAMBLE);
-    writeBuf.push_back(PN532_STARTCODE1);
-    writeBuf.push_back(PN532_STARTCODE2);
-    writeBuf.push_back(length);
-    writeBuf.push_back(~length + 1);
-    writeBuf.push_back(PN532_HOSTTOPN532);
-    uint8_t sum = PN532_HOSTTOPN532;
-    for (uint8_t i = 0; i < 2; i++)
-    {
-        writeBuf.push_back(hdr[i]);
-        sum += hdr[i];
-
-        DMSG("%02x", hdr[i]);
-    }
-    uint8_t checksum = ~sum + 1;
-    writeBuf.push_back(checksum);
-    writeBuf.push_back(PN532_POSTAMBLE);
-    DMSG("WriteFrame");
-    DMSG_HEX(writeBuf.data(), writeBuf.size());
-    for (auto &v: writeBuf)
-    {
-        write(&v);
-    }
-    uint8_t r[32];
     gpio_set_level(_ss, 1);
-    uint8_t timeout = PN532_ACK_WAIT_TIME;
-    while (!isReady(ignore_log))
-    {
-        vTaskDelay(2 / portTICK_PERIOD_MS);
-        timeout--;
-        if (0 == timeout)
-        {
-            DMSG("Time out when waiting for ACK");
-            return;
-        }
-    }
-    if (readAckFrame(ignore_log))
-    {
-        DMSG("Invalid ACK");
-        return;
-    }
-    readResponse(r, 32, 1000);
-    
+    // uint8_t long_preamble[16];
+    // uint8_t cmd = DATA_WRITE;
+    // std::fill(long_preamble, long_preamble + 16, 0x00);
+    // write(&cmd);
+    // for (size_t i = 0; i < 16; i++)
+    // {
+    //     write(&long_preamble[i]);
+    // }
+    // uint8_t hdr[] = { 0x00, 0x00 };
+    // uint8_t length = 3;
+    // std::vector<uint8_t> writeBuf;
+    // writeBuf.push_back(PN532_PREAMBLE);
+    // writeBuf.push_back(PN532_STARTCODE1);
+    // writeBuf.push_back(PN532_STARTCODE2);
+    // writeBuf.push_back(length);
+    // writeBuf.push_back(~length + 1);
+    // writeBuf.push_back(PN532_HOSTTOPN532);
+    // uint8_t sum = PN532_HOSTTOPN532;
+    // for (uint8_t i = 0; i < 2; i++)
+    // {
+    //     writeBuf.push_back(hdr[i]);
+    //     sum += hdr[i];
+
+    //     DMSG("%02x", hdr[i]);
+    // }
+    // uint8_t checksum = ~sum + 1;
+    // writeBuf.push_back(checksum);
+    // writeBuf.push_back(PN532_POSTAMBLE);
+    // DMSG("WriteFrame");
+    // DMSG_HEX(writeBuf.data(), writeBuf.size());
+    // for (auto &v: writeBuf)
+    // {
+    //     write(&v);
+    // }
+    // uint8_t r[32];
+    // gpio_set_level(_ss, 1);
+    // uint8_t timeout = PN532_ACK_WAIT_TIME;
+    // while (!isReady(ignore_log))
+    // {
+    //     vTaskDelay(2 / portTICK_PERIOD_MS);
+    //     timeout--;
+    //     if (0 == timeout)
+    //     {
+    //         DMSG("Time out when waiting for ACK");
+    //         return;
+    //     }
+    // }
+    // if (readAckFrame(ignore_log))
+    // {
+    //     DMSG("Invalid ACK");
+    //     return;
+    // }
+    // readResponse(r, 32, 1000);
 }
 
 int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen, bool ignore_log)
