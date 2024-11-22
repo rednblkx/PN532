@@ -28,6 +28,11 @@ void PN532::begin()
     HAL(wakeup)();
 }
 
+void PN532::stop()
+{
+    HAL(stop)();
+}
+
 /**************************************************************************/
 /*!
     @brief  Prints a hexadecimal value in plain characters

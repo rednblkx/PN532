@@ -52,6 +52,15 @@ PN532_SPI::PN532_SPI(uint8_t ss, uint8_t sck, uint8_t miso, uint8_t mosi, int bu
     spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
 }
 
+PN532_SPI::~PN532_SPI() {
+    ESP_LOGI(TAG, "Deconstructing class");
+    spi_bus_free(SPI2_HOST);
+    gpio_reset_pin(this->_ss);
+    gpio_reset_pin(this->_clk);
+    gpio_reset_pin(this->_miso);
+    gpio_reset_pin(this->_mosi);
+}
+
 void PN532_SPI::begin()
 {
     spi_device_interface_config_t devcfg = {
@@ -63,67 +72,80 @@ void PN532_SPI::begin()
         .flags = SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_BIT_LSBFIRST,
         .queue_size = 2
     };
-    spi_bus_add_device(SPI2_HOST, &devcfg, &spi);
+    esp_err_t status = spi_bus_add_device(SPI2_HOST, &devcfg, &spi);
+    if (status == ESP_OK) {
+        ESP_LOGI(TAG, "SPI device added");
+    } else {
+        ESP_LOGE(TAG, "Error adding SPI Device: %s", esp_err_to_name(status));
+    }
+}
+
+void PN532_SPI::stop() {
+    esp_err_t status = spi_bus_remove_device(this->spi);
+    if (status == ESP_OK) {
+        ESP_LOGI(TAG, "SPI device removed");
+    } else {
+        ESP_LOGE(TAG, "Error removing SPI Device: %s", esp_err_to_name(status));
+    }
 }
 
 void PN532_SPI::wakeup()
 {
     gpio_set_level(_ss, 0);
     vTaskDelay(2 / portTICK_PERIOD_MS);
-    gpio_set_level(_ss, 1);
-    // uint8_t long_preamble[16];
-    // uint8_t cmd = DATA_WRITE;
-    // std::fill(long_preamble, long_preamble + 16, 0x00);
-    // write(&cmd);
-    // for (size_t i = 0; i < 16; i++)
-    // {
-    //     write(&long_preamble[i]);
-    // }
-    // uint8_t hdr[] = { 0x00, 0x00 };
-    // uint8_t length = 3;
-    // std::vector<uint8_t> writeBuf;
-    // writeBuf.push_back(PN532_PREAMBLE);
-    // writeBuf.push_back(PN532_STARTCODE1);
-    // writeBuf.push_back(PN532_STARTCODE2);
-    // writeBuf.push_back(length);
-    // writeBuf.push_back(~length + 1);
-    // writeBuf.push_back(PN532_HOSTTOPN532);
-    // uint8_t sum = PN532_HOSTTOPN532;
-    // for (uint8_t i = 0; i < 2; i++)
-    // {
-    //     writeBuf.push_back(hdr[i]);
-    //     sum += hdr[i];
+    uint8_t long_preamble[16];
+    uint8_t cmd = DATA_WRITE;
+    std::fill(long_preamble, long_preamble + 16, 0x00);
+    write(&cmd);
+    for (size_t i = 0; i < 16; i++)
+    {
+        write(&long_preamble[i]);
+    }
+    uint8_t hdr[] = { 0x00, 0x00 };
+    uint8_t length = 3;
+    std::vector<uint8_t> writeBuf;
+    writeBuf.push_back(PN532_PREAMBLE);
+    writeBuf.push_back(PN532_STARTCODE1);
+    writeBuf.push_back(PN532_STARTCODE2);
+    writeBuf.push_back(length);
+    writeBuf.push_back(~length + 1);
+    writeBuf.push_back(PN532_HOSTTOPN532);
+    uint8_t sum = PN532_HOSTTOPN532;
+    for (uint8_t i = 0; i < 2; i++)
+    {
+        writeBuf.push_back(hdr[i]);
+        sum += hdr[i];
 
-    //     DMSG("%02x", hdr[i]);
-    // }
-    // uint8_t checksum = ~sum + 1;
-    // writeBuf.push_back(checksum);
-    // writeBuf.push_back(PN532_POSTAMBLE);
-    // DMSG("WriteFrame");
-    // DMSG_HEX(writeBuf.data(), writeBuf.size());
-    // for (auto &v: writeBuf)
-    // {
-    //     write(&v);
-    // }
-    // uint8_t r[32];
-    // gpio_set_level(_ss, 1);
-    // uint8_t timeout = PN532_ACK_WAIT_TIME;
-    // while (!isReady(ignore_log))
-    // {
-    //     vTaskDelay(2 / portTICK_PERIOD_MS);
-    //     timeout--;
-    //     if (0 == timeout)
-    //     {
-    //         DMSG("Time out when waiting for ACK");
-    //         return;
-    //     }
-    // }
-    // if (readAckFrame(ignore_log))
-    // {
-    //     DMSG("Invalid ACK");
-    //     return;
-    // }
-    // readResponse(r, 32, 1000);
+        DMSG("%02x", hdr[i]);
+    }
+    uint8_t checksum = ~sum + 1;
+    writeBuf.push_back(checksum);
+    writeBuf.push_back(PN532_POSTAMBLE);
+    DMSG("WriteFrame");
+    DMSG_HEX(writeBuf.data(), writeBuf.size());
+    for (auto &v: writeBuf)
+    {
+        write(&v);
+    }
+    uint8_t r[32];
+    gpio_set_level(_ss, 1);
+    uint8_t timeout = PN532_ACK_WAIT_TIME;
+    while (!isReady(ignore_log))
+    {
+        vTaskDelay(2 / portTICK_PERIOD_MS);
+        timeout--;
+        if (0 == timeout)
+        {
+            DMSG("Time out when waiting for ACK");
+            return;
+        }
+    }
+    if (readAckFrame(ignore_log))
+    {
+        DMSG("Invalid ACK");
+        return;
+    }
+    readResponse(r, 32, 1000);
 }
 
 int8_t PN532_SPI::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_t *body, uint8_t blen, bool ignore_log)
