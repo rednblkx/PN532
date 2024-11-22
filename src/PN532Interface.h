@@ -30,6 +30,7 @@ class PN532Interface
 {
 public:
     virtual void begin() = 0;
+    virtual void stop() = 0;
     virtual void wakeup() = 0;
 
     /**

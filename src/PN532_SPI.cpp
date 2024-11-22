@@ -56,6 +56,15 @@ PN532_SPI::PN532_SPI(uint8_t ss, uint8_t sck, uint8_t miso, uint8_t mosi, int bu
     spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
 }
 
+PN532_SPI::~PN532_SPI() {
+    ESP_LOGI(TAG, "Deconstructing class");
+    spi_bus_free(SPI2_HOST);
+    gpio_reset_pin(this->_ss);
+    gpio_reset_pin(this->_clk);
+    gpio_reset_pin(this->_miso);
+    gpio_reset_pin(this->_mosi);
+}
+
 void PN532_SPI::begin()
 {
     spi_device_interface_config_t devcfg = {
@@ -69,7 +78,21 @@ void PN532_SPI::begin()
         .pre_cb = nullptr,
         .post_cb = nullptr
     };
-    spi_bus_add_device(SPI2_HOST, &devcfg, &spi);
+    esp_err_t status = spi_bus_add_device(SPI2_HOST, &devcfg, &spi);
+    if (status == ESP_OK) {
+        ESP_LOGI(TAG, "SPI device added");
+    } else {
+        ESP_LOGE(TAG, "Error adding SPI Device: %s", esp_err_to_name(status));
+    }
+}
+
+void PN532_SPI::stop() {
+    esp_err_t status = spi_bus_remove_device(this->spi);
+    if (status == ESP_OK) {
+        ESP_LOGI(TAG, "SPI device removed");
+    } else {
+        ESP_LOGE(TAG, "Error removing SPI Device: %s", esp_err_to_name(status));
+    }
 }
 
 void PN532_SPI::wakeup()

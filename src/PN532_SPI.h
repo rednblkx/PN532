@@ -9,12 +9,13 @@
 
 using namespace std;
 
-class PN532_SPI : public PN532Interface, PN532_debug
+class PN532_SPI final : public PN532Interface, PN532_debug
 {
 public:
     PN532_SPI(uint8_t ss = CONFIG_PN532_SS, uint8_t sck = CONFIG_PN532_SCK, uint8_t miso = CONFIG_PN532_MISO, uint8_t mosi = CONFIG_PN532_MOSI, int bus_speed = 250 * 1000);
-
+    ~PN532_SPI();
     void begin();
+    void stop();
     void wakeup();
     int8_t writeCommand(const uint8_t* header, uint8_t hlen, const uint8_t* body = 0, uint8_t blen = 0, bool ignore_log = false);
 
