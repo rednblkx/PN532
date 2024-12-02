@@ -2,17 +2,11 @@
 #ifndef __PN532_SPI_H__
 #define __PN532_SPI_H__
 
-
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <driver/spi_master.h>
-#include <driver/spi_common.h>
-#include <driver/gpio.h>
 #include "PN532Interface.h"
 #include "PN532_debug.h"
-#include <esp_log.h>
+#include <driver/spi_master.h>
+#include <driver/gpio.h>
 #include <string.h>
-#include <cmath>
 
 using namespace std;
 

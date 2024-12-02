@@ -1,42 +1,31 @@
 menu "PN532 Configuration"
 
-config BLINK_GPIO
-    int "Blink GPIO number"
-	range 0 34
-	default 2
-	help
-		GPIO number (IOxx) to blink on and off.
-
-		Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to blink.
-
-		GPIOs 35-39 are input-only so cannot be used as outputs.
-
 config PN532_SCK
-    int "PN532_SCK number"
+    int "PN532 SCK GPIO"
 	range 0 34
 	default 18
 	help
-		GPIO number (IOxx) for Soft SPI.
+		GPIO number (IOxx) for SPI.
 
 config PN532_SS
-    int "PN532_SS number"
+    int "PN532 SS GPIO"
 	range 0 34
 	default 5
 	help
-		GPIO number (IOxx) for Soft SPI.
+		GPIO number (IOxx) for SPI.
 
 config PN532_MISO
-    int "PN532_MISO number"
+    int "PN532 MISO GPIO"
 	range 0 34
 	default 19
 	help
-		GPIO number (IOxx) for Soft SPI.
+		GPIO number (IOxx) for SPI.
 
 config PN532_MOSI
-    int "PN532_MOSI number"
+    int "PN532 MOSI GPIO"
 	range 0 34
 	default 23
 	help
-		GPIO number (IOxx) for Soft SPI.		
+		GPIO number (IOxx) for SPI.		
 
 endmenu

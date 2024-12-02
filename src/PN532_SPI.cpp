@@ -1,5 +1,8 @@
 
 #include "PN532_SPI.h"
+#include <esp_log.h>
+#include <string.h>
+#include <cmath>
 #include <string.h>
 #include <vector>
 
