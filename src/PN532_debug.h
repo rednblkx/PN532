@@ -1,20 +1,11 @@
 #ifndef __DEBUG_H__
 #define __DEBUG_H__
 
-// #define DEBUG
 #include <esp_log.h>
 #include <cstdarg>
-
-// #ifdef DEBUG
-#define DMSG(fmt, ...) if(!ignore_log){ESP_LOGD(TAG, fmt, ##__VA_ARGS__);}
-#define DMSG_STR(tag, fmt, ...)  ESP_LOGD(tag, fmt, ##__VA_ARGS__)
+#define DMSG(fmt, ...) if(!ignore_log){ESP_LOGD(TAG, "%s:%d > " fmt, __FUNCTION__ , __LINE__ __VA_OPT__(, ) __VA_ARGS__);}
+#define DMSG_STR(tag, fmt, ...)  ESP_LOGD(TAG, "%s:%d > " fmt, __FUNCTION__ , __LINE__ __VA_OPT__(, ) __VA_ARGS__)
 #define DMSG_HEX(buf, len) if(!ignore_log){ESP_LOG_BUFFER_HEX_LEVEL(TAG, buf, len, ESP_LOG_VERBOSE);}
-// #else
-// #define DMSG(args...)
-// #define DMSG_STR(tag, fmt, ...)
-// #define DMSG_HEX(tag, buf, len)
-// #define DMSG_INT(num)
-// #endif
 
 
 struct PN532_debug
