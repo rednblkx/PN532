@@ -104,12 +104,12 @@ int16_t SNEP::read(uint8_t *buf, uint8_t len, uint16_t timeout)
 	}
 
 	// check message's length
-	uint32_t length = (buf[2] << 24) + (buf[3] << 16) + (buf[4] << 8) + buf[5];
+	unsigned int length = (buf[2] << 24) + (buf[3] << 16) + (buf[4] << 8) + buf[5];
 	// length should not be more than 244 (header + body < 255, header = 6 + 3 + 2)
 	if (length > (status - 6))
 	{
 		DMSG("The SNEP message is too large: ");
-		DMSG("%lu", length);
+		DMSG("%u", length);
 		DMSG("%u", status - 6);
 		DMSG("\n");
 		return -4;
