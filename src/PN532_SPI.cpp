@@ -6,6 +6,8 @@
 #include <string.h>
 #include <vector>
 #include <algorithm>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #define STATUS_READ 0x02
 #define DATA_WRITE 0x01
